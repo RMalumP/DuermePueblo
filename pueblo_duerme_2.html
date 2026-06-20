@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<link rel="icon" type="image/png" href="https://aaldeiadormece.estaminestudio.com/img/baralho36.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>A Aldeia Adormece</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
@@ -200,6 +201,16 @@ select:disabled{opacity:.4;}
 .foot{text-align:center;font-size:11px;color:var(--muted);letter-spacing:.1em;font-family:var(--disp);text-transform:uppercase;margin-top:6px;}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--copper);color:var(--navy-dd);padding:10px 18px;border-radius:30px;font-family:var(--disp);text-transform:uppercase;font-size:12px;letter-spacing:.06em;z-index:90;opacity:0;transition:.3s;pointer-events:none;max-width:90%;text-align:center;}
 .toast.show{opacity:1;}
+/* créditos */
+#credits-btn{position:fixed;bottom:14px;left:14px;width:36px;height:36px;border-radius:50%;background:rgba(42,63,92,.55);border:1.5px solid rgba(184,116,63,.45);color:rgba(242,233,216,.65);font-family:var(--disp);font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:80;backdrop-filter:blur(4px);transition:.2s;display:none;}
+#credits-btn:hover{background:rgba(184,116,63,.4);color:var(--cream);}
+#credits-overlay{position:fixed;inset:0;background:rgba(21,33,47,.93);z-index:200;display:none;overflow-y:auto;padding:28px 20px 40px;animation:fade .3s ease;}
+#credits-overlay.show{display:block;}
+#credits-overlay .cr-inner{max-width:520px;margin:0 auto;}
+#credits-overlay h3{font-family:var(--disp);text-transform:uppercase;letter-spacing:.12em;font-size:14px;color:var(--copper-l);margin:18px 0 6px;}
+#credits-overlay p,#credits-overlay li{font-size:13px;color:var(--cream-d);line-height:1.65;margin:0 0 8px;}
+#credits-overlay a{color:var(--copper-l);text-decoration:none;}
+#credits-overlay .cr-close{display:block;margin:20px auto 0;padding:12px 28px;background:var(--copper);color:var(--navy-dd);border:none;border-radius:10px;font-family:var(--disp);text-transform:uppercase;font-size:14px;letter-spacing:.08em;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -261,6 +272,36 @@ select:disabled{opacity:.4;}
   <button class="btn btn-ghost" onclick="openRules()">📖 Reglas</button>
   <div class="foot" style="margin-top:18px">Talasnal · Serra da Lousã · 1911</div>
 </section>
+
+<!-- Botón créditos (solo visible en pantalla inicio) -->
+<button id="credits-btn" onclick="toggleCredits()" title="Créditos">©</button>
+
+<!-- Overlay de créditos -->
+<div id="credits-overlay">
+  <div class="cr-inner">
+    <h3>Desarrollado por</h3>
+    <p>RMP mediante vibe coding, a partir de obra derivada de <a href="https://aaldeiadormece.estaminestudio.com/" target="_blank">aaldeiadormece.estaminestudio.com</a>.<br>
+    No se ha contactado con la web original para esta creación. Se persigue el principio de <em>creative commons</em>.</p>
+
+    <h3>Aviso legal original</h3>
+    <p>El juego <em>The Village Sleeps</em> se creó sin ánimo de lucro ni fines comerciales. Este juego es una reinterpretación y se inspira en el juego original <em>The Werewolves of Miller's Hollow</em> (2001), de Philippe des Pallières y Hervé Marly, al que rinde homenaje. Incluye personajes del juego, de la expansión <em>The Werewolves of Miller's Hollow: Characters</em> (2012), de los mismos autores, y del juego <em>Ultimate Werewolf Artifacts</em> (2011), de Ted Alspach. Todos los derechos pertenecen a sus autores. Producto de Portugal.</p>
+    <p>Este juego fue concebido, probado y producido íntegramente en Portugal, desde enero de 2016 hasta octubre de 2017.</p>
+
+    <h3>Derivado del trabajo original de</h3>
+    <p><strong>Coordinación y diseño gráfico:</strong> André do Estaminé.</p>
+    <p><strong>Ilustraciones:</strong> Maria Mota · Ana Types Type · Ana Vieira · André Silva · Carlos Meinedo (Snack Studio) · Helena Morais Soares · Inês Vieira · João Moreira · José Luís Dias · Laro Lagosta · Lídia Azevedo · Luís Belo · Marta Afonso · Marta Ramos · Os Suspeitos · Óscar Afonso · Pedro Mota · Raquel Costa (Pequeña mancha negra) · Sara Moreira da Costa · The Royal Studio · Tiago Machado · Xesta Studio · Yara Kono</p>
+    <p><strong>Grabación de vídeo:</strong> Artiks</p>
+    <p><strong>Edición de vídeo y gráficos en movimiento:</strong> Snack Studio</p>
+    <p><strong>Banda sonora:</strong> João Neves</p>
+    <p><strong>Fotografía:</strong> Álvaro Martino y Ana Vieira</p>
+
+    <h3>Expresiones de gratitud</h3>
+    <p>Muchas personas, cada una a su manera y por diversos motivos, contribuyeron a que este juego fuera posible. A todas ellas, nuestro más sincero agradecimiento.</p>
+    <p>Adriana Leites · Afonso Fontoura · Agostinho Ferreira · Agostinho Santos · Álvaro Martino · Ana Areias · Ana Silva Silveira · Ana Vieira · André Ferreira · André Silva · André Silva Santos · Ângela Ribeiro · António Castelo · Beatriz Beato · Bruno Vieira · Carlos Meinedo · Catarina Caminha · Catarina David · Catarina Silva · Clara Nogueira · Cristiana Gouveia · Cristiana Ramos · Cristina Cartaxo · Diogo Ferreira · Dos dedos de conversación · Eduardo Rodrigues · Eduardo Romão · Felicidade Cunha · Filipa Mota · Filipe Lacerda · Filipe Ortigão · Francisco Ventura · Gabriela Bento · Helena Morais Soares · Hélio Rebelo · Hilário Vilas Boas · Hugo Moura · Hugo Sousa · Humberto Marques · Inês Correia · Inês Teixeira · Inês Vieira · Isabel Campos · Joana Sousa · João Castro · João Firmino · João Marques · João Moreira · João Neves · João Nogueira · Joel Faria · Jorge Castro · José Lobo · José Luís Dias · Katarina Warren · Lídia Azevedo · Liliana Fontoura · Lucas Brink · Luís Almeida · Luís Belo · Luís Keel · Luís Vieira · Luísa Lima · Mafalda David · Mafalda Leal Moura · Mafalda Magro · Manuel Lopes · Manuel Moreira · Manuel Pureza · María Ferreira · María Mota · Mariana Teixeira · Marta Afonso · Marta Leal Moura · Marta Ramos · Marta Rothes · Matilde Sanches · Mónica Couto · Nuno Leites · Nuno Loureiro · Nuno Sanches · Orlando Teixeira · Óscar Afonso · Joyería J. Baptista Dias · Palmira Loureiro · Patrick Sousa · Paulo Mariz · Pedro Correia · Pedro Couto · Pedro Hemsworth · Pedro Melo · Pedro Morim · Pedro Mota · Pedro Neves · Pedro Rothes · Rafael Sequeira · Rafael Serra · Rita Pureza · Rui Felício · Salvador Meira · Sandra Ferreira · Sara Moreira da Costa · Simão Castro · Sofia Lemos · Sofia Pinto · Soraia Santos · Teresa Dinis · Teresa Marques · Teresa Negrão · Tiago Machado · Tiago Pereira · Vânia Henriques · Yara Kono</p>
+
+    <button class="cr-close" onclick="toggleCredits()">Cerrar</button>
+  </div>
+</div>
 
 <!-- REVEAL -->
 <section id="scr-reveal" class="screen">
@@ -1167,8 +1208,9 @@ function act(what){
 }
 
 /* ===== NAV / UTIL ===== */
-function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);var btn=document.getElementById('credits-btn');if(btn)btn.style.display=(id==='scr-config')?'flex':'none';}
 function confirmHome(){if(confirm('¿Volver al inicio? Se perderá la partida actual.'))show('scr-config');}
+function toggleCredits(){var ov=document.getElementById('credits-overlay');ov.classList.toggle('show');}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 function openResults(from){game.resultsFrom=from;renderResults('resBox');show('scr-results');}
 function backFromResults(){show(game.resultsFrom);if(game.resultsFrom==='scr-game')renderDeathGrid();else renderPlayersMini();}
@@ -1229,6 +1271,7 @@ function init(){
   document.getElementById('numWolves').textContent=cfg.wolves;
   document.getElementById('recWolves').textContent=recWolvesFor(cfg.players);
   renderNarratorOptions();renderNames();renderRoles();syncWolfWarn();checkRoleCapacity();
+  document.getElementById('credits-btn').style.display='flex';
 }
 init();
 </script>
