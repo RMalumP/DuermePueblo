@@ -74,4 +74,4 @@ Supuestos donde el libro no concreta: quien llega vivo cobra supervivencia aunqu
 - Tras el recuento de votos con empate: decide la Insignia; sin Insignia se repite entre los empatados y, si sigue, no se elimina a nadie.
 
 ## Pendiente
-Arte propio o con permiso (las imágenes están hotlinkeadas desde `estaminestudio.com` y sin conexión se ven emojis hasta haberlas visto una vez), decisión sobre TURN y pruebas con móviles reales de todo lo anterior (todo se ha probado con navegadores de pruebas).
+Las imágenes (licencia open source de `estaminestudio.com`, crédito en el README) se cargan desde su web y sin conexión se ven emojis hasta haberlas visto una vez), decisión sobre TURN y pruebas con móviles reales de todo lo anterior (todo se ha probado con navegadores de pruebas).
