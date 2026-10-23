@@ -858,3 +858,27 @@ function init(){
   renderNarratorOptions();renderNames();renderRoles();syncWolfWarn();checkRoleCapacity();
 }
 init();
+
+
+/* ===== PWA: instalación y service worker ===== */
+let eventoInstalar=null;
+const esStandalone=()=>(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+function actualizarBotonInstalar(){
+  const b=document.getElementById('btnInstalar'),h=document.getElementById('hintIOS');if(!b||!h)return;
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  b.style.display=(!esStandalone()&&eventoInstalar)?'block':'none';
+  h.style.display=(!esStandalone()&&ios&&!eventoInstalar)?'block':'none';
+}
+function instalarApp(){
+  if(!eventoInstalar)return;
+  eventoInstalar.prompt();
+  eventoInstalar.userChoice.finally(()=>{eventoInstalar=null;actualizarBotonInstalar();});
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();eventoInstalar=e;actualizarBotonInstalar();});
+window.addEventListener('appinstalled',()=>{eventoInstalar=null;actualizarBotonInstalar();toast('App instalada');});
+actualizarBotonInstalar();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
+  const teniaControl=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(teniaControl)toast('Nueva versión descargada: se verá al volver a abrir la app');});
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw:',e&&e.message)));
+}

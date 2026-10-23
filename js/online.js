@@ -19,6 +19,15 @@ const netTxt=n=>n==='local'?'📶 red local':(n==='internet'?'🌐 internet':'')
 function activo(){return O.activo;}
 function esAnfitrion(){return O.activo&&O.host;}
 function partidaEnCurso(){return O.activo&&O.host&&O.partida;}
+// Evita que el móvil apague la pantalla durante la partida (si el navegador lo permite).
+let wl=null;
+async function pantalla(on){
+  try{
+    if(on&&'wakeLock' in navigator&&!wl){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null;});}
+    else if(!on&&wl){await wl.release();wl=null;}
+  }catch(e){/* no disponible */}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&O.activo)pantalla(true);});
 function offline(pid){const j=O.jug.find(x=>x.id===pid);return !!j&&!j.conectado;}
 
 function abrir(){
@@ -54,6 +63,7 @@ async function conectar(modo){
 function entrar(r,d){
   Object.assign(O,{activo:true,host:r.esAnfitrion,uid:r.uid,nombre:d.nombre,sala:d.sala,pass:d.pass,vista:null,pub:{},partida:false,net:null,conectado:true,cartasKey:'',ultimoSync:''});
   lsSet(SES,JSON.stringify({roomId:r.roomId,host:O.host,nombre:d.nombre,sala:d.sala,t:Date.now()}));
+  pantalla(true);
   if(O.host){
     const ex=O.T.leerExtra();
     if(r.reanudada&&ex&&ex.game&&ex.game.assigned){restaurarPartida(ex);return;}
@@ -89,7 +99,7 @@ async function recuperar(){ // al abrir la página: un jugador que recarga vuelv
 function limpiar(){
   clearTimeout(O.syncT);clearTimeout(O.flipT);
   Object.assign(O,{activo:false,host:false,jug:[],pub:{},vista:null,partida:false,net:null});
-  lsDel(SES);
+  lsDel(SES);pantalla(false);
   $('onlineBanner').style.display='none';
 }
 async function salir(){

@@ -58,3 +58,10 @@ Puntuación §9 (falta la tabla impresa del libro, que no se lee en el PDF), pas
 - Al terminar, el narrador puede **volver al lobby** con los mismos jugadores o cerrar la sala.
 - `npm run test:online`: narrador + 5 jugadores en navegadores reales.
 - Pendiente de esta fase: móvil compartido (varios jugadores en un móvil). Las acciones nocturnas que hoy se dicen en voz alta (Ladrón, Cupido, Niño Salvaje, pulgares) pasan a los móviles en la fase 4.
+
+## PWA
+- `manifest.webmanifest` + iconos (`icons/`, media luna sobre el pueblo; 192, 512, maskable y Apple) + `sw.js`: la app se instala en pantalla de inicio (Android/Chrome: botón «📲 Instalar la app»; iPhone: Compartir → Añadir a pantalla de inicio, con aviso en la app).
+- El modo local funciona **sin conexión** una vez abierta con internet. El online siempre usa la red (nunca se cachea PeerJS).
+- Estrategia de caché: se sirve lo guardado y se actualiza en segundo plano; la versión nueva se ve a la siguiente apertura (aviso en pantalla). **Al cambiar archivos de la app, sube `VERSION` en `sw.js`** y añade a `ARCHIVOS` cualquier archivo nuevo.
+- Durante una partida online se pide que la pantalla no se apague (Wake Lock).
+- `npm run test:pwa`.
