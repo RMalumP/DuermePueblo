@@ -5,7 +5,7 @@ const BACK="https://images.steamusercontent.com/ugc/2274945577069468636/192A59DB
 const LOGO=IMG+"baralho36.png";
 
 
-let cfg={players:8,wolves:2,narrator:"random",narratorEnabled:true,names:[],optional:{},mode:1,insigniaMode:"random",ladronMode:"externo",ninaRemota:false};
+let cfg={players:8,wolves:2,narrator:"random",narratorEnabled:true,names:[],optional:{},mode:1,insigniaMode:"random",ladronMode:"externo",ninaRemota:false,accionesMovil:false,narradorAuto:false,tiempos:{noche:30,debate:120,voto:45}};
 OPTIONAL.forEach(([k,on])=>cfg.optional[k]=on);
 
 let game={assigned:[],deck:[],revealList:[],ladronCards:[],ladronChosen:false,caretoUsed:false,
@@ -102,6 +102,23 @@ function checkRoleCapacity(){
   const w=document.getElementById('roleWarn'),cap=Engine.capacity(cfg);
   if(!cap.ok){w.style.display='flex';w.querySelector('span:last-child').textContent=cap.msg;return false;}
   w.style.display='none';return true;
+}
+// Acciones desde los móviles / narrador automático (opciones de la partida online). El narrador automático implica acciones en móviles.
+function toggleCfgFlag(k){
+  cfg[k]=!cfg[k];
+  if(k==='narradorAuto'&&cfg.narradorAuto){cfg.accionesMovil=true;cfg.mode=2;}
+  if(k==='accionesMovil'&&cfg.accionesMovil)cfg.mode=2;
+  if(k==='accionesMovil'&&!cfg.accionesMovil)cfg.narradorAuto=false;
+  aplicarOpcionesUI();
+}
+function setTiempo(k,v){if(!cfg.tiempos)cfg.tiempos={noche:30,debate:120,voto:45};cfg.tiempos[k]=+v;}
+function aplicarOpcionesUI(){
+  const f=(id,on,txt)=>{const b=document.getElementById(id);if(!b)return;b.classList.toggle('on',!!on);b.textContent=txt+' · '+(on?'ACTIVADO':'desactivado');};
+  f('btnAccionesMovil',cfg.accionesMovil,'📱 Acciones desde los móviles');
+  f('btnNarradorAuto',cfg.narradorAuto,'🤖 Narrador automático');
+  pickMode(cfg.mode);
+  const t=cfg.tiempos||{noche:30,debate:120,voto:45};
+  [['tmNoche','noche'],['tmDebate','debate'],['tmVoto','voto']].forEach(([id,k])=>{const s=document.getElementById(id);if(s)s.value=String(t[k]);});
 }
 function toggleNinaRemota(){
   cfg.ninaRemota=!cfg.ninaRemota;
@@ -385,8 +402,28 @@ function afterAct(){
   else hideWinBanner();
   if(window.Online)Online.sync();
 }
+// Acciones desde los móviles: el anfitrión es el narrador y la partida está en modo guiado.
+function fasePhones(){return !!(window.Online&&Online.activo()&&Online.esAnfitrion()&&game.online&&cfg.accionesMovil&&cfg.mode===2);}
+function actualizarBarraPendiente(){
+  const bar=document.getElementById('pendBar');if(!bar)return;
+  let txt='',fn=null,label='';
+  const ps=Flow.pendientes(game);
+  if(game.lynchPendiente!==null&&game.lynchPendiente!==undefined&&ps.length){txt='⏳ Esperando a la Heredera: '+esc(game.assigned[ps[0]].name);label='Seguir sin heredar';fn='saltarHeredera()';}
+  else if(game.pending&&game.pending.length&&ps.length&&['cazador','insignia'].includes((game.prompts[ps[0]]||{}).accion)){
+    const pr=game.prompts[ps[0]];txt='⏳ Esperando a '+esc(game.assigned[ps[0]].name)+' ('+(pr.accion==='cazador'?'disparo del Cazador':'sucesor de la Insignia')+')';label='Decidir yo';fn='decidirPendienteYo()';
+  }
+  bar.style.display=txt?'block':'none';
+  bar.innerHTML=txt?txt+` <button class="iconbtn" style="margin-left:8px" onclick="${fn}">${label}</button>`:'';
+}
+function decidirPendienteYo(){
+  const it=game.pending[0];if(!it)return;
+  if(game.prompts)delete game.prompts[it.idx];
+  actualizarBarraPendiente();
+  if(it.tipo==='cazador')showCazadorModal(it.idx);else showAlguacilModal(true);
+}
 function drainPending(){
   const it=game.pending[0];if(!it)return false;
+  if(fasePhones()){Flow.abrirPendientes(game);actualizarBarraPendiente();if(window.Online)Online.sync(true);return true;}
   if(it.tipo==='cazador'){if(!document.getElementById('cazadorModal').classList.contains('open'))showCazadorModal(it.idx);}
   else if(it.tipo==='insignia'){if(!document.getElementById('alguacilModal').classList.contains('open'))showAlguacilModal(true);}
   return true;
@@ -522,40 +559,7 @@ function buildOrderRef(){
 }
 
 /* ===== STEPS GUIADO ===== */
-function currentStepList(){
-  const list=[];
-  const add=(k,em,t,tx,ac)=>{if(k===null||inPlay(k))list.push({em,title:t,text:tx,action:ac,phase:'norm'});};
-  if(game.night===1&&!game.firstNightDone){
-    const p=(k,em,t,tx,ac)=>{if(k===null||inPlay(k))list.push({em,title:t,text:tx,action:ac,phase:'prelim'});};
-    p(null,"🌙","El pueblo se duerme","Pide a todos que cierren los ojos.",null);
-    p("ladron","💰","Ladrón",game.ladronLeftover?"El Ladrón está entre las 2 cartas sobrantes: nadie lo tiene. Haz como si lo despertaras.":(game.ladronChosen?"El Ladrón ya eligió su carta.":"El Ladrón acaba de recibir su asignación."),game.ladronChosen?null:'ladron');
-    // Paso extra: mostrar carta al jugador robado (solo modo intercambio, tras elegir)
-    if(inPlay('ladron')&&cfg.ladronMode==='intercambio'&&game.ladronChosen&&game.ladronStolenCard){
-      p(null,"👁","Mostrar carta al jugador robado","Pasa el teléfono al jugador afectado para que vea que ahora es Aldeano.","ladron_robado");
-    }
-    p("ninoSalvaje","🧒","Niño Salvaje","El Niño Salvaje despierta y señala a su Modelo (solo el narrador y el Niño lo saben).","modelo");
-    p("jabali","🐗","Jabalí","El Jabalí levanta la mano. Anota su posición (no abre los ojos).",null);
-    p("nina","👧","Niña","La Niña levanta la mano para que la reconozcas.",null);
-    p("cupido","💘","Cupido","El Cupido señala a los dos enamorados. Toca la cabeza de cada uno.","amor");
-    p("apaixonados","❤️","Los enamorados","Los enamorados se reconocen entre sí.",null);
-  }
-  add(null,"🐺","La manada","La manada despierta y elige víctima. Si no se deciden, nadie muere.",'manada');
-  add("loboAlfa","👑","Víctima del Alfa","Tras dormirse la manada, el Alfa puede levantar la mano para maldecir a la víctima.",'alfa');
-  add("loboRojo","🔴","Lobo Rojo","El Lobo Rojo despierta solo y elige otra víctima (si no ha muerto ningún lobo).",'rojo');
-  add("loboJudas","🗡️","Lobo Judas","El Lobo Judas despierta solo y puede eliminar a un lobo.",'judas');
-  add("bruja","🧙‍♀️","Bruja","Enséñale solo a quien ha sido devorado: pulgar arriba = curar, pulgar abajo = envenenar.",'bruja');
-  add("vidente","🔮","Vidente","La Vidente señala a un jugador. Pulgar arriba si es lobo, abajo si es aldeano.",'vidente');
-  add("zorra","🦊","Zorra","La Zorra señala el centro de un trío de vecinos. Pulgar arriba si hay algún lobo.",'zorra');
-  add("policia","👮","Policía","El Policía puede arrestar (pulgar abajo) y/o dar inmunidad (pulgar arriba). Una vez cada poder.",'policia');
-  add("inquisidor","⚖️","Inquisidor","El Inquisidor puede acusar a sus sospechosos (una sola vez en la partida).",'inquisidor');
-  if(inPlay('careto')&&(!game.caretoUsed||game.caretoUsedNight===game.night))add("careto","🎭","Careto","El Careto puede intercambiar dos cartas (una sola vez).","careto");
-  if(game.night>=2)add("medium","👻","Médium","El alma del último linchado le dibuja una letra en el aire.",'medium');
-  add(null,"☀️","El pueblo despierta","Resuelve la noche y anuncia las muertes sin explicar nunca cómo ni por qué.",'despierta');
-  add(null,"💬","Debate","La aldea discute y busca a los lobos.",'debate');
-  add(null,"🗳️","Votación","La aldea vota. La Insignia vale por dos y decide los empates.",'votacion');
-  add(null,"🌙","El pueblo se duerme","Nueva noche; empieza un nuevo turno normal.",null);
-  return list;
-}
+function currentStepList(){return Flow.pasos(game,cfg);}
 function renderStep(){
   game.steps=currentStepList();
   if(game.stepIdx>=game.steps.length)game.stepIdx=game.steps.length-1;
@@ -612,11 +616,14 @@ function renderStep(){
     const btn=document.createElement('button');btn.className='btn btn-primary btn-sm';btn.style.marginTop='0';
     btn.textContent='🎭 Registrar intercambio de cartas';btn.onclick=showCaretoModal;ex.appendChild(btn);
   }
+  if(window.Online)Online.paso();
   renderActionUI(s,ex);
+  actualizarBarraPendiente();
   updateLadronRobadoBtn();
   if(window.Online)Online.sync();
 }
 function nextStep(){
+  if(fasePhones()&&game.accionAbierta&&Flow.pendientes(game).length&&game.accionAbierta!=='votacion'&&!confirm('Faltan por responder en sus móviles: '+Flow.pendientes(game).map(i=>game.assigned[i].name).join(', ')+'. ¿Continuar sin su respuesta?'))return;
   if(game.stepIdx>=game.steps.length-1){
     Engine.nextCycle(game);game.stepIdx=0;game.acts={};game.nightResolved=false;game.nightRep=null;renderStep();renderPlayersMini();toast('Noche '+game.night);return;
   }
@@ -676,8 +683,16 @@ function pickerUI(ex,o){
   draw();ex.appendChild(wrap);
 }
 function nm(i){return i===null||i===undefined||!game.assigned[i]?'—':esc(game.assigned[i].name);}
+function estadoMovil(ex){
+  const pre=game.preguntados||[];if(!pre.length)return;
+  const pend=Flow.pendientes(game),hecho=pre.filter(i=>!pend.includes(i));
+  const nom=i=>esc(game.assigned[i].name)+(Online.offline(game.assigned[i].pid)?' 📴':'');
+  infoBox(ex,'📱 En sus móviles — esperando: <b>'+(pend.length?pend.map(nom).join(', '):'nadie')+'</b>'+(hecho.length?' · ✓ ya han respondido: '+hecho.map(nom).join(', '):''),pend.length?'warn2':'ok');
+  if(game.empateManada&&game.empateManada.length>1)infoBox(ex,'⚖️ Los lobos han empatado entre <b>'+game.empateManada.map(i=>i===null?'nadie':nm(i)).join(', ')+'</b>: elige tú la víctima abajo.','bad');
+}
 function renderActionUI(s,ex){
   const a=s.action;if(!a)return;
+  if(fasePhones()&&game.accionAbierta===a)estadoMovil(ex);
   const role=ACTOR_DE[a];
   if(role&&a!=='modelo'&&a!=='amor'&&!Engine.actor(game,role)){
     infoBox(ex,'Este personaje no está vivo: haz como si lo despertaras, sin que decida nada.','warn2');return;
@@ -750,6 +765,7 @@ function renderActionUI(s,ex){
       b.onclick=()=>{
         const rep=Engine.resolveNight(game,game.acts);
         game.nightRep=rep;game.nightResolved=true;if(rep.info.careto)game.caretoUsedNight=game.night;
+        if(game.online)rep.manana.forEach(t=>Flow.anunciar(game,t));
         renderStep();renderPlayersMini();afterAct();
       };
       ex.appendChild(b);
@@ -774,8 +790,14 @@ function renderActionUI(s,ex){
 }
 
 /* ===== VOTACIÓN ===== */
+function refreshVotoMovil(){
+  if(!fasePhones()||!game.votosDia||!game.vote)return;
+  const t=Flow.contarVotos(game);game.vote.counts=Object.assign({},t.counts);game.vote.alguacil=t.votoAlguacil;
+  if(document.getElementById('voteModal').classList.contains('open'))renderVote();
+}
 function showVoteModal(){
   if(!game.vote)game.vote={counts:{},alguacil:null,solo:null};
+  refreshVotoMovil();
   renderVote();document.getElementById('voteModal').classList.add('open');
 }
 function closeVoteModal(){document.getElementById('voteModal').classList.remove('open');}
@@ -791,6 +813,7 @@ function renderVote(){
   const nino=alive.find(p=>p.roles.includes('ninoSalvaje')&&!p.lobo),mod=game.assigned.find(p=>p.modelo&&p.vivo);
   if(nino&&mod)notas+=`🧒 ${esc(nino.name)} no puede votar a ${esc(mod.name)}<br>`;
   if(v.solo)notas+='🔁 Segunda ronda: solo entre los empatados<br>';
+  if(fasePhones()&&game.votosDia)notas+=`📱 Han votado <b>${Object.keys(game.votosDia).length}</b> de <b>${Object.keys(game.votosDia).length+Flow.pendientes(game).length}</b> desde sus móviles<br>`;
   if(notas)infoBox(body,notas);
   candidatos.forEach(p=>{
     const blocked=!Engine.puedeSerVotado(game,p.idx);
@@ -829,15 +852,30 @@ function renderVote(){
 }
 function doLynch(idx){
   closeVoteModal();
-  const target=game.assigned[idx],ev=[];
   const h=Engine.herederaElegible(game,idx);
-  if(h&&confirm(`¿${h.name} (Heredera) quiere quedarse con la carta de ${target.name}?`))ev.push(...Engine.heredar(game,idx));
+  if(h&&fasePhones()){ // la Heredera decide en su móvil; el narrador puede saltarlo
+    game.lynchPendiente=idx;Flow.abrirHeredera(game,idx);game.preguntados=[h.idx];
+    Online.sync(true);actualizarBarraPendiente();toast('Esperando a la Heredera…');return;
+  }
+  const ev=[];
+  if(h&&confirm(`¿${h.name} (Heredera) quiere quedarse con la carta de ${game.assigned[idx].name}?`))ev.push(...Engine.heredar(game,idx));
+  finalizarLinchamiento(idx,ev);
+}
+function finalizarLinchamiento(idx,ev){
+  const target=game.assigned[idx];
   ev.push(...Engine.lynch(game,idx));
-  game.vote=null;
+  game.vote=null;game.lynchPendiente=null;
   afterAct();renderPlayersMini();
   if(cfg.mode===2&&document.getElementById('scr-guided').classList.contains('active'))renderStep();
   toast(`☠️ ${target.name} es linchado`+(ev.length?' · '+ev[ev.length-1]:''));
+  if(game.online&&window.Online)Flow.anunciar(game,'☠️ '+target.name+' ha sido linchado');
 }
+function continuarLinchamiento(){
+  const idx=game.lynchPendiente;if(idx===null||idx===undefined)return;
+  game.lynchPendiente=null;game.prompts={};game.accionAbierta=null;
+  finalizarLinchamiento(idx,[]);actualizarBarraPendiente();
+}
+function saltarHeredera(){continuarLinchamiento();}
 
 /* ===== ACTION SHEET ===== */
 function openSheet(i){
@@ -913,7 +951,7 @@ function aplicarCfgUI(){
   const b=document.getElementById('narToggle'),s=document.getElementById('narratorSel');
   if(cfg.narratorEnabled){b.classList.remove('off');b.textContent='Narrador activado · pulsa para jugar sin narrador';s.disabled=false;}
   else{b.classList.add('off');b.textContent='SIN narrador · pulsa para activarlo';s.disabled=true;s.value='random';cfg.narrator='none';}
-  pickMode(cfg.mode);
+  aplicarOpcionesUI();
   const nr=document.getElementById('btnNinaRemota');nr.classList.toggle('on',!!cfg.ninaRemota);nr.textContent='👧 Niña a distancia · '+(cfg.ninaRemota?'ACTIVADO':'desactivado');
   renderNames();renderRoles();syncWolfWarn();checkRoleCapacity();
 }

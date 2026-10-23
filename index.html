@@ -275,6 +275,12 @@ select:disabled{opacity:.4;}
       <div class="mode-card" id="mode2" onclick="pickMode(2)"><div class="mi">🧭</div><div class="mt">Guiado</div><div class="md">La app guía paso a paso.</div></div>
     </div>
     <button class="btn-toggle" id="btnNinaRemota" onclick="toggleNinaRemota()">👧 Niña a distancia · desactivado</button>
+    <button class="btn-toggle" id="btnAccionesMovil" onclick="toggleCfgFlag('accionesMovil')">📱 Acciones desde los móviles · desactivado</button>
+    <div class="hint">Para partidas a distancia: cada jugador responde en su móvil a lo que le toca de noche (Vidente, Bruja, lobos…) y vota de día. El narrador sigue dirigiendo y puede corregir. En la sala déjalo desactivado: las preguntas se hacen de palabra. Requiere el modo Guiado y no permite compartir móvil.</div>
+    <button class="btn-toggle" id="btnNarradorAuto" onclick="toggleCfgFlag('narradorAuto')">🤖 Narrador automático · desactivado</button>
+    <div class="hint">El anfitrión juega como uno más y la app dirige las fases sola, con temporizadores. Implica acciones desde los móviles. Ojo: quien aloja la partida podría ver todos los roles.</div>
+    <div class="hint" style="margin-bottom:4px">Tiempos del narrador automático</div>
+    <div style="display:flex;gap:6px"><select id="tmNoche" onchange="setTiempo('noche',this.value)"><option value="20">Noche 20 s</option><option value="30">Noche 30 s</option><option value="45">Noche 45 s</option><option value="60">Noche 60 s</option></select><select id="tmDebate" onchange="setTiempo('debate',this.value)"><option value="60">Debate 1 min</option><option value="120">Debate 2 min</option><option value="180">Debate 3 min</option><option value="300">Debate 5 min</option></select><select id="tmVoto" onchange="setTiempo('voto',this.value)"><option value="30">Voto 30 s</option><option value="45">Voto 45 s</option><option value="60">Voto 60 s</option></select></div>
     <div class="hint">Solo para partidas online en modo guiado cuando no todos están en la misma sala. Activada, la Niña espía desde su móvil: ve a un lobo al azar y tiene 1 posibilidad entre 3 de ser descubierta. Desactivada (lo normal), la Niña abre los ojos de verdad en la sala.</div>
   </div>
   <button class="btn btn-primary" onclick="startGame()">▶ Jugar</button>
@@ -345,6 +351,7 @@ select:disabled{opacity:.4;}
       <button class="iconbtn" onclick="openResults('scr-guided')">🗝️</button>
     </div>
   </div>
+  <div class="info-box warn2" id="pendBar" style="display:none"></div>
   <div class="win-banner" id="winBanner2"><span class="wb-em" id="wbEm2"></span><div class="wb-t" id="wbT2"></div><div class="wb-d" id="wbD2"></div></div>
   <div class="cycle-box">
     <div class="cycle-pill"><div class="cn">🌙 Noche</div><div class="cv" id="g2Night">1</div></div>
@@ -440,6 +447,7 @@ select:disabled{opacity:.4;}
     <button class="iconbtn" onclick="openRules()">Reglas</button>
   </div>
   <div class="win-banner" id="pjWin"><span class="wb-em" id="pjWinEm"></span><div class="wb-t" id="pjWinT"></div><div class="wb-d" id="pjWinD" style="white-space:pre-line"></div></div>
+  <div class="card-panel" id="pjAccion" style="display:none"></div>
   <div class="card-panel" id="pjPuntos" style="display:none"></div>
   <div class="cycle-box">
     <div class="cycle-pill"><div class="cn">🌙 Noche</div><div class="cv" id="pjNight">1</div></div>
@@ -447,6 +455,7 @@ select:disabled{opacity:.4;}
   </div>
   <div class="card-panel" id="pjEstado"></div>
   <div class="reveal-wrap"><div class="flip-stage" id="pjCards"></div><div class="hint">Toca la carta para verla u ocultarla (se oculta sola a los 10 s)</div></div>
+  <div class="card-panel" id="pjAnuncios" style="margin-top:16px"></div>
   <div class="card-panel" style="margin-top:16px"><h2 class="section">Jugadores</h2><div id="pjList"></div></div>
 </section>
 </div>
@@ -567,6 +576,7 @@ select:disabled{opacity:.4;}
 
 <script src="js/data.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/flow.js"></script>
 <script src="js/app.js"></script>
 <script src="js/online.js"></script>
 </body>

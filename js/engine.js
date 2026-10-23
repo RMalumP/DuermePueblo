@@ -118,11 +118,12 @@ function kill(game,idx,cause,night){
     const nino=game.assigned.find(o=>o.roles.includes('ninoSalvaje')&&o.vivo&&!o.lobo);
     if(nino){nino.lobo=true;ev.push(`🧒→🐺 ${nino.name} (Niño Salvaje) se convierte en Lobo`);}
   }
+  // Primero el disparo del Cazador y después el sucesor de la Insignia (el sucesor se elige entre los que sigan vivos).
+  if(p.roles.includes('cazador'))game.pending.push({tipo:'cazador',idx:p.idx,night});
   if(p.insignia){
     p.insignia=false;
     if(alivePlayers(game).length)game.pending.push({tipo:'insignia',idx:p.idx});
   }
-  if(p.roles.includes('cazador'))game.pending.push({tipo:'cazador',idx:p.idx,night});
   return ev;
 }
 function revive(game,idx){
