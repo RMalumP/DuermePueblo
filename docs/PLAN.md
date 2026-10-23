@@ -12,8 +12,9 @@
 |---|---|---|
 | 0 | Motor sin DOM (`js/engine.js`), datos (`js/data.js`), corrección de bugs y tests | ✅ |
 | 1 | Motor de reglas completo (§11 del libro), pasos de la noche con acciones y votación con Insignia doble | ✅ |
-| 2a | Spike de conectividad (anfitrión + 2-3 móviles: router, hotspot, 4G) | pendiente |
-| 2b | Modularizar, copiar/adaptar el transporte PeerJS (sin TURN), lobby, QR, diagnóstico | pendiente |
+| 2a | Spike de conectividad (anfitrión + 2-3 móviles: router, hotspot, 4G) | pendiente (necesita móviles reales) |
+| 2b | Transporte PeerJS sin TURN (`js/transport-peer.js`), probado de extremo a extremo con navegadores | ✅ |
+| 2c | Pantallas online: crear/unirse, lobby, QR, diagnóstico de red | pendiente |
 | 3 | Híbrido: carta privada por móvil + narrador guiado + móvil compartido | pendiente |
 | 4 | Remoto: acciones nocturnas por móvil, canal de lobos, fases con cronómetro | pendiente |
 | 5 | Día online: votación, chat, interrupciones (Cazador, Heredera, Insignia) | pendiente |
@@ -42,3 +43,9 @@ la Insignia no tenía sucesor; inmune/preso no se limpiaban; la carta se reconst
 
 ## Pendiente
 Puntuación §9 (falta la tabla impresa del libro, que no se lee en el PDF), pasos «automáticos» para el modo «Reparto», revisión de derechos de las imágenes.
+
+## Fase 2b: transporte
+- `js/transport-peer.js` adaptado del de Impostor: solo STUN, sala = SHA-256(nombre+contraseña), identidad por token, snapshot del anfitrión, lista blanca de mensajes, limitador.
+- Añadido: eventos efímeros a un jugador o a un grupo (chat de lobos…), snapshot del estado del juego (`guardarExtra/leerExtra`), tipo de conexión por jugador (`local` / `internet`), aviso `pausa` al cerrar el anfitrión.
+- `npm run test:net` levanta un servidor de señalización local y 4 navegadores: contraseña incorrecta, nombre repetido, vistas privadas, acciones con remitente verdadero, recarga de jugador y de anfitrión, expulsar y cerrar.
+- Dos fallos del transporte original de Impostor corregidos aquí: el rechazo por nombre repetido/sala llena/partida en curso llegaba como «conexión cerrada» (se cerraba antes de registrar el motivo), y el anfitrión tardaba ~30 s en notarse al recargar.

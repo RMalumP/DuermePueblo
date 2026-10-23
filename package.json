@@ -4,6 +4,12 @@
   "description": "La aldea se duerme — asistente de narrador (local) y futuro modo online",
   "scripts": {
     "test": "node --test tests/engine.test.js",
-    "test:ui": "node tests/ui-reparto.js && node tests/ui-guiado.js && node tests/ui-noche.js"
+    "test:ui": "node tests/ui-reparto.js && node tests/ui-guiado.js && node tests/ui-noche.js",
+    "test:net": "node tests/transport.js"
+  },
+  "devDependencies": {
+    "peer": "1.0.2",
+    "peerjs": "1.5.4",
+    "playwright": "1.56.1"
   }
 }
