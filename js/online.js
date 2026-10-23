@@ -13,7 +13,7 @@ function lsDel(k){try{localStorage.removeItem(k);}catch(e){/* nada */}}
 function parse(s,fb){try{const v=JSON.parse(s);return v===undefined?fb:v;}catch(e){return fb;}}
 function mk(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!==undefined)e.innerHTML=html;return e;}
 const hayJuego=()=>typeof game!=='undefined'&&!!game&&!!game.assigned;
-const netTxt=n=>n==='local'?'📶 red local':(n==='internet'?'🌐 internet':'');
+const netTxt=n=>n==='local'?'📶 red local':(n==='internet'?'🌐 internet':(n==='relay'?'🔁 relé':''));
 
 /* ===== entrar / salir ===== */
 function activo(){return O.activo;}
@@ -64,6 +64,7 @@ function entrar(r,d){
   if(r.esAnfitrion&&!O.cfgPrev)O.cfgPrev=JSON.parse(JSON.stringify(cfg)); // para devolver la configuración local al salir de la sala
   cfg.lobosManual=false;
   Object.assign(O,{activo:true,host:r.esAnfitrion,uid:r.uid,nombre:d.nombre,sala:d.sala,pass:d.pass,vista:null,vistas:[],seat:0,revelado:false,ninaVio:null,pub:{},partida:false,net:null,conectado:true,cartasKey:'',ultimoSync:'',cfgN:-1});
+  if(r.avisos&&r.avisos.length)setTimeout(()=>toast(r.avisos[0]),600);
   lsSet(SES,JSON.stringify({roomId:r.roomId,host:O.host,nombre:d.nombre,sala:d.sala,t:Date.now()}));
   pantalla(true);
   if(O.host){

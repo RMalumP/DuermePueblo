@@ -21,7 +21,7 @@ const until=async(fn,ms=20000)=>{const t=Date.now();while(Date.now()-t<ms){try{i
   const nueva=async(n)=>{
     const ctx=await b.newContext({viewport:{width:400,height:900}});
     await ctx.route(/cdn\.jsdelivr\.net|unpkg\.com|fonts\.g|aaldeiadormece|steamusercontent/,r=>/peerjs/.test(r.request().url())?r.fulfill({contentType:'text/javascript',body:PEERJS}):r.abort());
-    await ctx.addInitScript(()=>{window.PUEBLO_PEER_SERVER={host:'127.0.0.1',port:9341,path:'/pueblo',secure:false};});
+    await ctx.addInitScript(()=>{window.PUEBLO_TURN_PROXY='';window.PUEBLO_PEER_SERVER={host:'127.0.0.1',port:9341,path:'/pueblo',secure:false};});
     const pg=await ctx.newPage();pg.on('pageerror',e=>errs.push(n+': '+e.message));
     pg.on('dialog',d=>d.accept(d.type()==='prompt'?d.defaultValue():undefined));
     await pg.goto('http://127.0.0.1:9342/index.html');return{ctx,pg};

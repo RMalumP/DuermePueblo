@@ -22,7 +22,7 @@ const until=async(fn,ms=30000)=>{const t=Date.now();while(Date.now()-t<ms){try{i
   const nueva=async(n)=>{
     const ctx=await b.newContext({viewport:{width:400,height:900}});
     await ctx.route(/cdn\.jsdelivr\.net|unpkg\.com|fonts\.g|aaldeiadormece|steamusercontent/,r=>/peerjs/.test(r.request().url())?r.fulfill({contentType:'text/javascript',body:PEERJS}):r.abort());
-    await ctx.addInitScript(()=>{window.PUEBLO_PEER_SERVER={host:'127.0.0.1',port:9361,path:'/pueblo',secure:false};});
+    await ctx.addInitScript(()=>{window.PUEBLO_TURN_PROXY='';window.PUEBLO_PEER_SERVER={host:'127.0.0.1',port:9361,path:'/pueblo',secure:false};});
     return{ctx,pg:await pagina(ctx,n)};
   };
   const entrar=async(pg,nombre,modo)=>{await pg.click('text=🌐 Jugar online');await pg.fill('#olName',nombre);await pg.fill('#olRoom','Sala rec');await pg.fill('#olPass','clave1');await pg.click(modo==='crear'?'#olCrear':'#olUnir');};

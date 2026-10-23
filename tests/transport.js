@@ -20,7 +20,7 @@ let fallos=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c){fallos++
   const nuevo=async()=>{
     const ctx=await b.newContext();
     await ctx.route(/cdn\.jsdelivr\.net|unpkg\.com/,r=>r.fulfill({contentType:'text/javascript',body:PEERJS}));
-    await ctx.addInitScript(()=>{window.PUEBLO_PEER_SERVER={host:'127.0.0.1',port:9301,path:'/pueblo',secure:false};});
+    await ctx.addInitScript(()=>{window.PUEBLO_TURN_PROXY='';window.PUEBLO_PEER_SERVER={host:'127.0.0.1',port:9301,path:'/pueblo',secure:false};});
     return ctx;
   };
   const abrir=async ctx=>{
@@ -96,6 +96,21 @@ let fallos=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c){fallos++
   await H2.evaluate(()=>T.cerrarSala());
   await wait(600);
   ok(await B2.evaluate(()=>window.msgs.some(m=>m.tipo==='sala-cerrada')),'al cerrar la sala los jugadores lo saben');
+  // servidor de relé: credenciales repartidas por un Worker (simulado); si falla, se sigue solo con STUN
+  const worker=http.createServer((q,r)=>{r.writeHead(200,{'content-type':'application/json','access-control-allow-origin':'*'});r.end(JSON.stringify([{urls:'stun:stun.relay.example:80'},{urls:'turn:relay.example:443',username:'u',credential:'c'},{urls:'http://malo'}]));}).listen(9303,'127.0.0.1');
+  const ctxR=await nuevo(),R1=await abrir(ctxR);
+  await R1.evaluate(()=>{globalThis.PUEBLO_TURN_PROXY='http://127.0.0.1:9303/';});
+  const rr1=await R1.evaluate(()=>T.crearSala('sala rele','clave1','Rele'));
+  ok(!rr1.avisos.length,'con el Worker disponible no hay avisos');
+  const ice=await R1.evaluate(()=>T.iceActual());
+  ok(ice.some(x=>[].concat(x.urls).some(u=>u.startsWith('turn:'))&&x.username==='u'),'las credenciales TURN del Worker se usan');
+  ok(!ice.some(x=>[].concat(x.urls).some(u=>u.startsWith('http'))),'se descartan entradas que no son stun/turn');
+  const ctxM=await nuevo(),R2=await abrir(ctxM);
+  await R2.evaluate(()=>{globalThis.PUEBLO_TURN_PROXY='http://127.0.0.1:9399/';});
+  const rr2=await R2.evaluate(()=>T.crearSala('sala sin rele','clave1','SinRele'));
+  ok(rr2.esAnfitrion&&rr2.avisos.length>0,'si el Worker no responde la sala se crea igual y se avisa');
+  ok(!(await R2.evaluate(()=>T.iceActual())).some(x=>[].concat(x.urls).some(u=>u.startsWith('turn:'))),'y se usa solo STUN');
+  worker.close();
   await b.close();web.close();ps.close&&ps.close();
   console.log(fallos?`${fallos} fallo(s)`:'todo correcto');
   process.exit(fallos?1:0);

@@ -122,7 +122,37 @@ function turnExtra() {
   if (!l) { try { l = JSON.parse(lsGet(LS + 'turn') || '[]'); } catch (e) { l = []; } }
   return (Array.isArray(l) ? l : []).filter(x => x && x.urls && [].concat(x.urls).every(u => /^(turn|turns):/.test(String(u))));
 }
-async function obtenerIce() { const t = turnExtra(); return { iceServers: [...STUN, ...t], avisos: t.length ? [] : ['Sin servidor de relé: algunas redes 4G/5G no podrán conectar con redes wifi distintas.'] }; }
+// Servidor de relé (TURN) con credenciales repartidas por un Worker de Cloudflare (el mismo de «El Impostor»: solo responde a https://rmalump.github.io).
+// Se pide al crear o unirse a una sala; si el Worker no responde se sigue solo con STUN. Con TURN basta con que lo use uno de los dos extremos.
+// Para otro Worker: cambia la URL, o define globalThis.PUEBLO_TURN_PROXY (cadena vacía = no usar relé).
+const TURN_PROXY_URL = 'https://impostor-turn.raul110082.workers.dev';
+const T_TURN = 4000;      // ms máx. esperando credenciales al Worker
+let iceCache = null, iceUsado = [];
+async function obtenerIce() {
+  if (iceCache && Date.now() - iceCache.t < 4 * 60 * 1000) return iceCache.v;
+  const avisos = []; let turn = turnExtra();
+  const url = globalThis.PUEBLO_TURN_PROXY !== undefined ? globalThis.PUEBLO_TURN_PROXY : TURN_PROXY_URL;
+  if (url) {
+    try {
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const t = setTimeout(() => ctl && ctl.abort(), T_TURN);
+      const r = await fetch(url, { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+      clearTimeout(t);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json(), arr = Array.isArray(d) ? d : (d && d.iceServers);
+      const buenos = (Array.isArray(arr) ? arr : []).filter(x => x && x.urls && [].concat(x.urls).every(u => /^(stun|turn|turns):/.test(String(u))));
+      if (!buenos.length) throw new Error('respuesta sin servidores');
+      turn = [...turn, ...buenos];
+    } catch (e) {
+      console.warn('TURN no disponible:', e && e.message);
+      avisos.push('No se pudo obtener el servidor de relé: se usa solo conexión directa y algunas redes 4G/5G no podrán conectar con wifi distintos.');
+    }
+  } else if (!turn.length) avisos.push('Sin servidor de relé: algunas redes 4G/5G no podrán conectar con wifi distintos.');
+  const v = { iceServers: [...STUN, ...turn], avisos };
+  iceUsado = v.iceServers;
+  if (!avisos.length) iceCache = { t: Date.now(), v };   // un fallo no se cachea: se reintenta en la siguiente conexión
+  return v;
+}
 function nuevoPeer(id, iceServers) {
   return new Promise((resolve, reject) => {
     let listo = false;
@@ -540,7 +570,7 @@ async function leerRoles() { return sala && sala.esHost ? JSON.parse(JSON.string
 
 export default {
   nombre: 'peer',
-  crearSala, unirse, reanudar, enviar, expulsar, salir, cerrarSala, leerRoles, guardarExtra, leerExtra, diagnostico,
+  crearSala, unirse, reanudar, enviar, expulsar, salir, cerrarSala, leerRoles, guardarExtra, leerExtra, diagnostico, iceActual: () => iceUsado.slice(),
   alRecibir(cb) { cbs.msg.push(cb); },
   alCambiarJugadores(cb) { cbs.jug.push(cb); },
   alConexion(cb) { cbs.con.push(cb); },

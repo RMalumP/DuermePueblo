@@ -14,7 +14,7 @@ App web (PWA) para jugar a *La aldea se duerme* (El pueblo duerme): asistente de
 | 6 | Robustez: reconexión a mitad de noche, pausa, jugadores sin conexión | ✅ |
 | 7 | Puntuación del libro (§9) y marcador, accesibilidad, PWA y persistencia | ✅ |
 | — | Imágenes propias o con permiso | pendiente |
-| — | Servidor TURN (wifi ↔ 4G) | pendiente de decidir (se habla al final) |
+| — | Servidor TURN (wifi ↔ 4G) | ✅ conectado al Worker de Impostor; falta probarlo con móviles reales |
 
 ## Cómo se juega
 - **En la sala (lo habitual):** el narrador usa «Jugar online» → crea sala; cada jugador entra con su móvil y ve solo su carta; el narrador dirige de palabra con el modo guiado. El móvil se puede compartir entre hasta 3 personas.
@@ -58,8 +58,9 @@ Equipo 2 · supervivencia según carta (Lobeco 5, Alfa 10, Rojo 8, Judas 30 solo
 Supuestos donde el libro no concreta: quien llega vivo cobra supervivencia aunque su equipo pierda; un maldito o convertido puntúa como Lobeco; el Ladrón puntúa por la carta que tiene ahora; «La Niña denuncia (+3)» lo marca el narrador.
 
 ## Conectividad
-- Misma red (wifi, también compartido o hotspot): funciona bien.
-- Anfitrión en wifi y jugador con 4G: **no conecta** con solo STUN (NAT de operador). Solución real: un TURN. El transporte lo admite sin tocar código (`localStorage 'pueblo.peer.turn'` o `globalThis.PUEBLO_TURN`, lista `[{urls:'turn:…',username,credential}]`; basta con que lo use un extremo). Decisión pendiente.
+- Misma red (wifi, también compartido o hotspot): conexión directa.
+- **Relé (TURN) para wifi ↔ 4G:** al crear o unirse a una sala el transporte pide credenciales al Worker de Cloudflare de «El Impostor» (`TURN_PROXY_URL` en `js/transport-peer.js`; el Worker solo responde a `https://rmalump.github.io`). Si el Worker no responde, la sala funciona igual solo con STUN y se avisa. Con TURN basta con que lo use un extremo. En el lobby cada conexión muestra 📶 red local, 🌐 internet o 🔁 relé.
+- Otro Worker: cambia la URL, o `globalThis.PUEBLO_TURN_PROXY` (cadena vacía = sin relé). Credenciales fijas sin Worker: `localStorage 'pueblo.peer.turn'`.
 - Señalización: servidor público de PeerJS (sin garantías) y STUN de Google y Cloudflare.
 - En modo automático quien aloja la partida podría ver todos los roles (herramientas del navegador). En modo humano el narrador ya los ve por definición.
 
