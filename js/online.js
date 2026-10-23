@@ -61,6 +61,7 @@ async function conectar(modo){
   finally{ocupado(false);}
 }
 function entrar(r,d){
+  if(r.esAnfitrion&&!O.cfgPrev)O.cfgPrev=JSON.parse(JSON.stringify(cfg)); // para devolver la configuración local al salir de la sala
   cfg.lobosManual=false;
   Object.assign(O,{activo:true,host:r.esAnfitrion,uid:r.uid,nombre:d.nombre,sala:d.sala,pass:d.pass,vista:null,vistas:[],seat:0,revelado:false,ninaVio:null,pub:{},partida:false,net:null,conectado:true,cartasKey:'',ultimoSync:'',cfgN:-1});
   lsSet(SES,JSON.stringify({roomId:r.roomId,host:O.host,nombre:d.nombre,sala:d.sala,t:Date.now()}));
@@ -103,6 +104,7 @@ function limpiar(){
   Object.assign(O,{activo:false,host:false,jug:[],pub:{},vista:null,vistas:[],seat:0,revelado:false,ninaVio:null,partida:false,net:null,cfgN:-1});
   lsDel(SES);pantalla(false);
   devolverOpciones();
+  if(O.cfgPrev){const c=O.cfgPrev;O.cfgPrev=null;['players','names','wolves','narrator','narratorEnabled','lobosManual'].forEach(k=>{if(k in c)cfg[k]=c[k];else delete cfg[k];});aplicarCfgUI();}
 }
 async function salir(){
   const T=O.T,host=O.host;

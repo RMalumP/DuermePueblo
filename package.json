@@ -7,7 +7,8 @@
     "test:ui": "node tests/ui-reparto.js && node tests/ui-guiado.js && node tests/ui-noche.js",
     "test:net": "node tests/transport.js",
     "test:online": "node tests/ui-online.js",
-    "test:pwa": "node tests/pwa.js"
+    "test:pwa": "node tests/pwa.js",
+    "test:persistencia": "node tests/ui-persistencia.js"
   },
   "devDependencies": {
     "peer": "1.0.2",

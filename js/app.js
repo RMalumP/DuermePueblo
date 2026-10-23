@@ -822,7 +822,7 @@ function act(what){
 }
 
 /* ===== NAV / UTIL ===== */
-function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(typeof guardarEstado==='function')guardarEstado();}
 function confirmHome(){
   if(window.Online&&Online.activo()&&Online.esAnfitrion()){if(Online.partidaEnCurso()&&confirm('¿Volver a la sala? Se perderá la partida actual (los jugadores siguen conectados).'))Online.alLobby();return;}
   if(confirm('¿Volver al inicio? Se perderá la partida actual.'))show('scr-config');
@@ -861,9 +861,69 @@ function init(){
   document.getElementById('numPlayers').textContent=cfg.players;
   document.getElementById('numWolves').textContent=cfg.wolves;
   document.getElementById('recWolves').textContent=recWolvesFor(cfg.players);
-  renderNarratorOptions();renderNames();renderRoles();syncWolfWarn();checkRoleCapacity();
+  renderNarratorOptions();
+  if(!cfg.narratorEnabled)cfg.narrator='none'; // renderNarratorOptions no conoce «sin narrador»
+  aplicarCfgUI();
 }
-init();
+// Pinta en la pantalla de configuración todo lo que hay en cfg (al arrancar, al restaurar y al salir del online).
+function aplicarCfgUI(){
+  document.getElementById('numPlayers').textContent=cfg.players;
+  document.getElementById('numWolves').textContent=cfg.wolves;
+  document.getElementById('recWolves').textContent=recWolvesFor(cfg.players);
+  renderNarratorOptions();
+  const b=document.getElementById('narToggle'),s=document.getElementById('narratorSel');
+  if(cfg.narratorEnabled){b.classList.remove('off');b.textContent='Narrador activado · pulsa para jugar sin narrador';s.disabled=false;}
+  else{b.classList.add('off');b.textContent='SIN narrador · pulsa para activarlo';s.disabled=true;s.value='random';cfg.narrator='none';}
+  pickMode(cfg.mode);
+  const nr=document.getElementById('btnNinaRemota');nr.classList.toggle('on',!!cfg.ninaRemota);nr.textContent='👧 Niña a distancia · '+(cfg.ninaRemota?'ACTIVADO':'desactivado');
+  renderNames();renderRoles();syncWolfWarn();checkRoleCapacity();
+}
+
+/* ===== PERSISTENCIA: configuración y partida local sobreviven a recargar o reabrir la app ===== */
+const KEY_ESTADO='pueblo.estado.v1';
+const ESTADO_V=1;                 // súbelo si cambia la forma de `game` o `cfg`: se descarta lo guardado con otra versión
+const PANTALLAS_PARTIDA=['scr-reveal','scr-game','scr-guided','scr-results'];
+let ultimoGuardado='';
+function guardarEstado(){
+  try{
+    const scr=(document.querySelector('.screen.active')||{}).id||'scr-config';
+    const enPartida=!!(game&&game.assigned&&game.assigned.length)&&PANTALLAS_PARTIDA.includes(scr)&&!game.online; // la partida online la recupera online.js
+    const core=JSON.stringify({cfg,scr:enPartida?scr:'scr-config',game:enPartida?game:null});
+    if(core===ultimoGuardado)return;
+    ultimoGuardado=core;
+    localStorage.setItem(KEY_ESTADO,'{"v":'+ESTADO_V+',"t":'+Date.now()+','+core.slice(1));
+  }catch(e){/* sin almacenamiento o lleno: la app sigue funcionando */}
+}
+function leerEstadoGuardado(){
+  try{
+    const sv=JSON.parse(localStorage.getItem(KEY_ESTADO)||'null');
+    if(!sv||sv.v!==ESTADO_V||!sv.cfg||Date.now()-(sv.t||0)>30*24*3600*1000)return null;
+    return sv;
+  }catch(e){return null;}
+}
+function restaurarPartidaLocal(sv){
+  game=sv.game;
+  game.ladronCallback=null;game.revealList=Engine.revealList(game);
+  if(game.reveal){game.reveal.busy=false;game.reveal.flipped=false;}
+  ultimoGuardado='';
+  showAlguacilBtns();
+  if(game.winner)showWinBanner(game.winner);
+  if(sv.scr==='scr-reveal'){show('scr-reveal');renderReveal();}
+  else if(sv.scr==='scr-guided'){show('scr-guided');renderStep();renderPlayersMini();}
+  else if(sv.scr==='scr-results'){show('scr-results');renderResults('resBox');}
+  else{show('scr-game');renderGameInfo();if(cfg.mode===1&&cfg.optional['ladron']&&!game.ladronChosen)showLadronModal();}
+  drainPending(); // un disparo del Cazador o un sucesor de la Insignia pendientes vuelven a abrirse
+  toast('Partida recuperada');
+}
+(function arrancar(){
+  const sv=leerEstadoGuardado();
+  if(sv)Object.assign(cfg,sv.cfg);
+  init();
+  if(sv&&sv.game&&sv.game.assigned&&sv.game.assigned.length&&PANTALLAS_PARTIDA.includes(sv.scr))restaurarPartidaLocal(sv);
+  setInterval(guardarEstado,1500);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')guardarEstado();});
+  window.addEventListener('pagehide',guardarEstado);
+})();
 
 
 /* ===== PWA: instalación y service worker ===== */

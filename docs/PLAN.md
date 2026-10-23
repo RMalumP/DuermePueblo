@@ -76,3 +76,10 @@ Puntuación §9 (falta la tabla impresa del libro, que no se lee en el PDF), pas
 - **Opciones de partida en un desplegable dentro del lobby** (lobos, cartas, modo, Niña a distancia), con resumen en la cabecera. Ya no se abre otra pantalla. El número de jugadores y los nombres salen de la sala.
 - **Móvil compartido** (copiado del modo online de Impostor): el narrador puede añadir hasta 2 invitados por móvil (👥 +1), renombrar, quitar y **ordenar la mesa** (▲▼; el orden importa para vecinos del Jabalí/Zorra y la izquierda de la Rata). Cada móvil alterna sus cartas con «Pasar el móvil a …»; la información privada (lobo, pareja, Modelo) solo se ve con la carta destapada. Solo en el modo híbrido (cartas), no en el de acciones individuales de la fase 4.
 - **Niña a distancia** (opcional, **desactivada por defecto**; el juego está pensado para jugar en una sala, donde la Niña abre los ojos de verdad): solo en online + modo guiado y solo durante el paso «La manada». La Niña espía desde su móvil, ve a un lobo al azar y tiene 1/3 de probabilidad de ser descubierta (entonces muere en lugar de la víctima). Una vez por noche. Es la primera acción de jugador → narrador (mensaje `accion` con el remitente verificado).
+
+## Persistencia (la app no pierde datos al recargar o reabrir)
+- **Configuración** (jugadores, lobos, cartas, modo, narrador, nombres, Niña a distancia) y **partida local** (reparto a medias, modo guiado, Cazador/Insignia pendientes, votación, victoria) se guardan solas en el dispositivo cada 1,5 s, al cambiar de pantalla y al ocultar o cerrar la app. Al abrirla se restauran en la misma pantalla y el mismo paso.
+- «Inicio» borra la partida guardada pero conserva la configuración. Lo guardado caduca a los 30 días.
+- **Online:** el narrador recupera su partida y el jugador vuelve a su sala (ya estaba). Al salir de una sala online la configuración local vuelve a como estaba.
+- Si cambia la forma de `game` o `cfg`, sube `ESTADO_V` en `js/app.js` (se descarta lo guardado con otra versión) y `VERSION` en `sw.js`.
+- `npm run test:persistencia`.
