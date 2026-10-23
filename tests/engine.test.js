@@ -11,7 +11,7 @@ function rngSeq(seed){let s=seed;return()=>{s=(s*1664525+1013904223)%4294967296;
 // Partida a medida: roles[i] es la carta del jugador i.
 function mk(roles){
   const game={assigned:roles.map((r,i)=>E.mkPlayer(i,'J'+(i+1),Array.isArray(r)?r:[r],false)),deck:[],ladronCards:[],ladronChosen:false,ladronStolenCard:null,
-    caretoUsed:false,night:1,day:0,firstNightDone:false,winner:null,pending:[],borrachoWin:null};
+    caretoUsed:false,night:1,day:0,firstNightDone:false,winner:null,pending:[],borrachoWin:null,infected:null,lastLynched:null};
   return game;
 }
 
@@ -106,7 +106,7 @@ test('Enamorados: la pareja muere de pena y encadena al Cazador',()=>{
   const ev=E.kill(g,0,'noche');
   assert.ok(!g.assigned[1].vivo);
   assert.equal(g.assigned[1].deathCause,'pena');
-  assert.deepEqual(g.pending,[{tipo:'cazador',idx:1}]);
+  assert.deepEqual(g.pending,[{tipo:'cazador',idx:1,night:true}]);
   assert.ok(ev.some(x=>x.includes('muere de pena')));
 });
 test('Enamorados: la pena convierte al Niño Salvaje si la pareja era su Modelo',()=>{
@@ -198,4 +198,232 @@ test('capacidad: lobos especiales y cartas de aldea que no caben',()=>{
 test('el máximo de lobos cuenta las cartas reales',()=>{
   assert.equal(E.maxWolves(cfgBase({players:8,narrator:'3'})),6);
   assert.equal(E.maxWolves(cfgBase({players:8,narrator:'none'})),7);
+});
+
+/* ===== Fase 1: noche ===== */
+const R=(g,a)=>E.resolveNight(g,a);
+const vivos=g=>g.assigned.filter(p=>p.vivo).map(p=>p.idx);
+
+test('noche: la manada mata y el anuncio no explica la causa',()=>{
+  const g=mk(['lobo','aldeano','aldeano','aldeano']);
+  const r=R(g,{manada:1});
+  assert.deepEqual(r.muertes,[{idx:1,causa:'noche'}]);
+  assert.deepEqual(r.manana,['💀 J2 ha muerto']);
+});
+test('noche: sin víctima no muere nadie',()=>{
+  const g=mk(['lobo','aldeano','aldeano']);
+  assert.deepEqual(R(g,{manada:null}).manana,['Nadie ha muerto esta noche']);
+});
+test('noche: los lobos no pueden devorar a otro lobo',()=>{
+  const g=mk(['lobo','lobo','aldeano']);
+  const r=R(g,{manada:1});
+  assert.equal(r.muertes.length,0);assert.ok(r.avisos.length);
+});
+test('Bruja: cura a la víctima (una sola vez) y envenena (una sola vez)',()=>{
+  const g=mk(['lobo','aldeano','bruja','aldeano','aldeano']);
+  let r=R(g,{manada:1,brujaCura:1});
+  assert.equal(r.muertes.length,0);assert.ok(g.assigned[1].vivo);
+  r=R(g,{manada:3,brujaCura:3});
+  assert.ok(r.avisos.some(x=>x.includes('ya usó la poción de vida')));assert.ok(!g.assigned[3].vivo);
+  r=R(g,{brujaVeneno:0});
+  assert.ok(!g.assigned[0].vivo);assert.equal(r.muertes[0].causa,'veneno');
+  r=R(g,{brujaVeneno:4});
+  assert.ok(g.assigned[4].vivo);assert.ok(r.avisos.some(x=>x.includes('poción de muerte')));
+});
+test('Bruja: puede curarse a sí misma y usar las dos pociones la misma noche',()=>{
+  const g=mk(['lobo','bruja','aldeano','aldeano','aldeano']);
+  const r=R(g,{manada:1,brujaCura:1,brujaVeneno:2});
+  assert.ok(g.assigned[1].vivo);assert.ok(!g.assigned[2].vivo);assert.equal(r.muertes.length,1);
+});
+test('Bruja/Lobo devorada por el Lobo Judas no puede curarse',()=>{
+  const g=mk(['loboJudas','bruja','aldeano','aldeano']);g.assigned[1].lobo=true;
+  const r=R(g,{judas:1,brujaCura:1});
+  assert.ok(!g.assigned[1].vivo);assert.ok(r.avisos.some(x=>x.includes('Bruja/Lobo')));
+});
+test('Lobo Alfa: maldice una sola vez, el maldito es Lobo y la aldea oye «nadie ha muerto»',()=>{
+  const g=mk(['loboAlfa','vidente','aldeano','aldeano','aldeano']);
+  let r=R(g,{manada:1,alfaCurse:true});
+  assert.ok(g.assigned[1].vivo&&g.assigned[1].lobo&&E.isWolf(g.assigned[1]));
+  assert.equal(r.info.maldito,1);assert.deepEqual(r.manana,['Nadie ha muerto esta noche']);
+  r=R(g,{manada:2,alfaCurse:true});
+  assert.ok(!g.assigned[2].vivo);assert.ok(r.avisos.some(x=>x.includes('Alfa')));
+});
+test('Vidente: el maldito ya cuenta como Lobo, sin decir de qué tipo',()=>{
+  const g=mk(['loboAlfa','vidente','aldeano','aldeano']);
+  assert.equal(R(g,{vidente:2}).info.vidente,'aldeano');
+  g.assigned[2].lobo=true;
+  assert.equal(R(g,{vidente:2}).info.vidente,'lobo');
+});
+test('Niña: si la ven, muere en lugar de la víctima',()=>{
+  const g=mk(['lobo','nina','aldeano','aldeano']);
+  const r=R(g,{manada:2,ninaVista:true});
+  assert.ok(!g.assigned[1].vivo);assert.ok(g.assigned[2].vivo);assert.equal(r.muertes.length,1);
+});
+test('Lobo Rojo: solo mientras no haya muerto ningún lobo',()=>{
+  const g=mk(['lobo','loboRojo','aldeano','aldeano','aldeano','aldeano']);
+  R(g,{manada:2,rojo:3});
+  assert.ok(!g.assigned[2].vivo&&!g.assigned[3].vivo);
+  E.kill(g,0,'voto');
+  const r=R(g,{manada:4,rojo:5});
+  assert.ok(!g.assigned[4].vivo&&g.assigned[5].vivo);assert.ok(r.avisos.some(x=>x.includes('Rojo')));
+});
+test('Lobo Judas: solo elimina a otro lobo',()=>{
+  const g=mk(['loboJudas','lobo','aldeano','aldeano']);
+  let r=R(g,{judas:2});assert.ok(g.assigned[2].vivo);assert.ok(r.avisos.length);
+  r=R(g,{judas:1});assert.ok(!g.assigned[1].vivo);
+});
+test('Zorra: trío de vecinos; sin lobo pierde el poder',()=>{
+  const g=mk(['aldeano','aldeano','zorra','aldeano','lobo','aldeano']);
+  let r=R(g,{zorra:1});            // trío J1,J2,J3 sin lobo
+  assert.equal(r.info.zorra,false);assert.ok(g.zorraPerdida);
+  r=R(g,{zorra:3});assert.equal(r.info.zorra,undefined); // ya no tiene poder
+  const h=mk(['aldeano','aldeano','zorra','aldeano','lobo','aldeano']);
+  assert.equal(R(h,{zorra:3}).info.zorra,true);  // el centro J4 tiene al lobo J5 de vecino
+  assert.ok(!h.zorraPerdida);
+});
+test('Zorra: los muertos no cuentan como vecinos',()=>{
+  const g=mk(['zorra','aldeano','lobo','aldeano']);
+  E.kill(g,1,'noche');
+  assert.equal(E.zorraVe(g,0),true); // J1: su vecino vivo a la izquierda es el lobo
+});
+test('Policía: arresta y da inmunidad una sola vez cada uno, y se anuncia',()=>{
+  const g=mk(['policia','aldeano','aldeano','lobo']);
+  let r=R(g,{policiaArresta:1,policiaInmune:0});
+  assert.ok(g.assigned[1].preso&&g.assigned[0].inmune);assert.equal(r.manana.length,3);
+  E.startNight(g);
+  assert.ok(!g.assigned[1].preso&&!g.assigned[0].inmune);
+  r=R(g,{policiaArresta:2,policiaInmune:2});
+  assert.ok(!g.assigned[2].preso&&!g.assigned[2].inmune);assert.equal(r.avisos.length,2);
+});
+test('Inquisidor: acierta (la aldea gana con él) o falla (muere)',()=>{
+  let g=mk(['inquisidor','lobo','aldeano','aldeano','aldeano','lobo','aldeano']);g.initialWolves=2;
+  let r=R(g,{inquisidor:[1,5]});
+  assert.equal(r.info.inquisidor,'acierta');assert.equal(E.checkWin(g).t,'La aldea y el Inquisidor ganan');
+  g=mk(['inquisidor','lobo','aldeano','aldeano','aldeano','lobo','aldeano']);g.initialWolves=2;
+  r=R(g,{inquisidor:[1,2]});
+  assert.equal(r.info.inquisidor,'falla');assert.ok(!g.assigned[0].vivo);
+  g=mk(['inquisidor','lobo','aldeano','aldeano']);g.initialWolves=1;
+  assert.equal(R(g,{inquisidor:[1]}).info.inquisidor,'acierta');
+});
+test('Inquisidor: con 4-5 lobos señala a 3 y basta con 2 aciertos; solo una vez; Inquisidor/Lobo no puede',()=>{
+  assert.deepEqual(E.inquisidorObjetivos({initialWolves:5,assigned:[]}),{n:3,aciertos:2});
+  let g=mk(['inquisidor','lobo','lobo','aldeano','aldeano','aldeano','aldeano','lobo','lobo']);g.initialWolves=4;
+  assert.equal(R(g,{inquisidor:[1,2,3]}).info.inquisidor,'acierta');
+  g=mk(['inquisidor','lobo','aldeano','aldeano']);g.initialWolves=1;g.assigned[0].lobo=true;
+  assert.ok(R(g,{inquisidor:[1]}).avisos.some(x=>x.includes('Inquisidor/Lobo')));
+});
+test('Careto: intercambia en la noche, una sola vez',()=>{
+  const g=mk(['careto','lobo','aldeano','aldeano']);
+  let r=R(g,{careto:[0,1]});
+  assert.deepEqual(r.info.careto,[0,1]);assert.ok(E.isWolf(g.assigned[0]));
+  r=R(g,{careto:[2,3]});assert.ok(r.avisos.some(x=>x.includes('Careto')));
+});
+test('Rata: muerta de noche infecta al primer lobo a su izquierda, que muere la noche siguiente',()=>{
+  const g=mk(['rata','aldeano','lobo','aldeano','lobo','aldeano']);
+  R(g,{manada:0});
+  assert.equal(g.infected,2);
+  const r=R(g,{manada:1});
+  assert.ok(!g.assigned[2].vivo&&!g.assigned[1].vivo);
+  assert.ok(r.muertes.some(m=>m.idx===2&&m.causa==='infeccion'));
+  assert.equal(g.infected,null);
+});
+test('Rata: linchada de día no infecta; y si el infectado es linchado no se transmite',()=>{
+  let g=mk(['rata','aldeano','lobo','aldeano','lobo']);
+  E.lynch(g,0);assert.equal(g.infected,null);
+  g=mk(['rata','aldeano','lobo','aldeano','lobo']);
+  R(g,{manada:0});assert.equal(g.infected,2);
+  E.lynch(g,2);assert.equal(g.infected,null);
+  const r=R(g,{manada:1});
+  assert.ok(g.assigned[4].vivo,'la infección no pasa al siguiente lobo');
+});
+test('Rata + Niño Salvaje (Modelo): infecta antes de convertir al Niño',()=>{
+  const g=mk(['ninoSalvaje','rata','lobo','aldeano','lobo']);
+  g.assigned[1].modelo=true;
+  R(g,{manada:1});
+  assert.equal(g.infected,2,'el Niño (índice 0) no cuenta aún como lobo');
+  assert.ok(g.assigned[0].lobo);
+});
+test('Rata envenenada por la Bruja (muerte nocturna) también infecta',()=>{
+  const g=mk(['bruja','rata','lobo','aldeano','aldeano']);
+  R(g,{brujaVeneno:1});
+  assert.equal(g.infected,2);
+});
+test('Rata/Enamorada muerta de pena de noche infecta',()=>{
+  const g=mk(['aldeano','rata','lobo','aldeano','lobo']);
+  g.assigned[0].amor=g.assigned[1].amor=true;
+  R(g,{manada:0});
+  assert.equal(g.infected,2);
+});
+test('Cazador muerto de noche: dispara y la muerte nocturna del Rata infecta',()=>{
+  const g=mk(['cazador','rata','lobo','aldeano','aldeano']);
+  R(g,{manada:0});
+  assert.deepEqual(g.pending,[{tipo:'cazador',idx:0,night:true}]);
+  E.resolvePending(g,'cazador',1);
+  assert.equal(g.infected,2);
+});
+test('Jabalí: huele a un lobo vecino vivo (no se huele a sí mismo)',()=>{
+  const g=mk(['jabali','aldeano','lobo','aldeano']);
+  assert.equal(E.jabaliHuele(g),false);
+  E.kill(g,1,'noche');
+  assert.equal(E.jabaliHuele(g),true);
+  const h=mk(['jabali','aldeano','aldeano']);h.assigned[0].lobo=true;
+  assert.equal(E.jabaliHuele(h),false);
+});
+test('noche: el anuncio incluye al Jabalí',()=>{
+  const g=mk(['jabali','aldeano','lobo','aldeano']);
+  const r=R(g,{manada:1});
+  assert.ok(r.manana.includes('🐗 ¡El Jabalí huele el peligro!'));
+});
+
+/* ===== Fase 1: día ===== */
+test('votación: la Insignia vale por dos y desempata',()=>{
+  const g=mk(['aldeano','aldeano','aldeano','lobo','aldeano']);
+  g.assigned[0].insignia=true;
+  let t=E.tally(g,{1:2,2:2});
+  assert.ok(t.empate&&t.desempata===0);
+  t=E.tally(g,{1:2,2:1},2);   // el voto doble del Alguacil a J3 → 2 y 2
+  assert.deepEqual(t.top,[1,2]);
+  t=E.tally(g,{1:1,2:1},1);
+  assert.equal(t.ganador,1);
+});
+test('votación: el inmune no puede ser votado; el preso no vota; el Niño no vota a su Modelo',()=>{
+  const g=mk(['aldeano','aldeano','ninoSalvaje','lobo']);
+  g.assigned[1].inmune=true;g.assigned[0].preso=true;g.assigned[3].modelo=true;
+  assert.equal(E.tally(g,{1:5,3:1}).ganador,3);
+  assert.ok(!E.votantes(g).some(p=>p.idx===0));
+  assert.equal(E.puedeVotarA(g,2,3),false);
+  assert.equal(E.puedeVotarA(g,2,0),true);
+});
+test('Heredera: toma la carta del linchado salvo Enamorada o Lobo',()=>{
+  const g=mk(['heredera','vidente','lobo','aldeano']);
+  assert.ok(E.herederaElegible(g,1));
+  E.heredar(g,1);E.lynch(g,1);
+  assert.deepEqual(g.assigned[0].roles,['vidente']);assert.ok(!g.assigned[1].vivo);
+  const h=mk(['heredera','vidente','lobo']);h.assigned[0].amor=true;
+  assert.equal(E.herederaElegible(h,1),null);
+  const w=mk(['heredera','vidente','lobo']);w.assigned[0].lobo=true;
+  assert.equal(E.herederaElegible(w,1),null);
+});
+test('Heredera hereda el bando del linchado (Lobo)',()=>{
+  const g=mk(['heredera','aldeano','lobo','aldeano']);
+  E.heredar(g,2);E.lynch(g,2);
+  assert.ok(E.isWolf(g.assigned[0]));
+});
+test('Niño Salvaje gana también si llega vivo al final',()=>{
+  const g=mk(['ninoSalvaje','aldeano','lobo']);
+  g.assigned[1].modelo=true;
+  E.kill(g,2,'voto');
+  const w=E.checkWin(g);
+  assert.equal(w.t,'Los Aldeanos ganan');assert.ok(w.d.includes('Niño Salvaje'));
+});
+test('cupido y modelo: se fijan sin duplicar',()=>{
+  const g=mk(['cupido','aldeano','ninoSalvaje','aldeano']);
+  assert.ok(E.setEnamorados(g,1,3));assert.ok(!E.setEnamorados(g,1,1));
+  assert.equal(g.assigned.filter(p=>p.amor).length,0);
+  E.setEnamorados(g,1,3);E.setModelo(g,2,1);E.setModelo(g,2,3);
+  assert.equal(g.assigned.filter(p=>p.modelo).length,1);assert.ok(g.assigned[3].modelo);
+});
+test('ventaja de lobos con tantos lobos como aldeanos',()=>{
+  assert.equal(E.ventajaLobos(mk(['lobo','aldeano','aldeano'])),false);
+  assert.equal(E.ventajaLobos(mk(['lobo','aldeano'])),true);
 });
