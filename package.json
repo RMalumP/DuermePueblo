@@ -3,14 +3,15 @@
   "private": true,
   "description": "La aldea se duerme — asistente de narrador (local) y futuro modo online",
   "scripts": {
-    "test": "node --test tests/engine.test.js tests/flow.test.js",
+    "test": "node --test tests/engine.test.js tests/flow.test.js tests/auto.test.js",
     "test:ui": "node tests/ui-reparto.js && node tests/ui-guiado.js && node tests/ui-noche.js && node tests/ui-puntos.js",
     "test:net": "node tests/transport.js",
     "test:online": "node tests/ui-online.js",
     "test:pwa": "node tests/pwa.js",
     "test:persistencia": "node tests/ui-persistencia.js",
     "test:puntos": "node tests/ui-puntos.js",
-    "test:moviles": "node tests/ui-moviles.js"
+    "test:moviles": "node tests/ui-moviles.js",
+    "test:auto": "node tests/ui-automatico.js"
   },
   "devDependencies": {
     "peer": "1.0.2",

@@ -146,7 +146,7 @@ function startOnlineGame(pids,seatIds){
   game.assigned.forEach((p,i)=>{p.pid=pids[i]||null;p.seat=(seatIds&&seatIds[i])||p.pid;});
   game.revealList=[];game.online=true;
   showAlguacilBtns();hideWinBanner();
-  goToGame();
+  if(!cfg.narradorAuto)goToGame(); // con narrador automático el anfitrión juega y no usa el panel guiado
   return true;
 }
 function startGame(){

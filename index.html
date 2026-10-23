@@ -444,10 +444,18 @@ select:disabled{opacity:.4;}
   <div class="topbar">
     <button class="iconbtn" onclick="Online.salirConfirm()">‹ Salir</button>
     <div class="title" id="pjTitle"></div>
+    <button class="iconbtn" id="pjMod" style="display:none" onclick="Online.modAbrir()">⚙️</button>
     <button class="iconbtn" onclick="openRules()">Reglas</button>
   </div>
+  <div class="info-box" id="pjFase" style="display:none;text-align:center"></div>
   <div class="win-banner" id="pjWin"><span class="wb-em" id="pjWinEm"></span><div class="wb-t" id="pjWinT"></div><div class="wb-d" id="pjWinD" style="white-space:pre-line"></div></div>
   <div class="card-panel" id="pjAccion" style="display:none"></div>
+  <div class="card-panel" id="pjChat" style="display:none">
+    <h2 class="section">Chat</h2>
+    <div id="pjChatTabs" style="display:flex;gap:6px;margin-bottom:8px"></div>
+    <div id="pjChatLog" style="max-height:220px;overflow:auto;font-size:13.5px;line-height:1.45"></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><input id="pjChatIn" maxlength="200" autocomplete="off" style="flex:1;background:var(--navy-dd);border:1px solid rgba(184,116,63,.25);border-radius:8px;color:var(--cream);font-family:var(--body);font-size:15px;padding:9px 11px"><button class="iconbtn" id="pjChatSend">Enviar</button></div>
+  </div>
   <div class="card-panel" id="pjPuntos" style="display:none"></div>
   <div class="cycle-box">
     <div class="cycle-pill"><div class="cn">🌙 Noche</div><div class="cv" id="pjNight">1</div></div>
@@ -522,7 +530,19 @@ select:disabled{opacity:.4;}
   </div>
 </div>
 
- <!-- MARCADOR MODAL -->
+ <!-- MODERACIÓN (narrador automático) -->
+<div class="modal-bg" id="modModal">
+  <div class="modal">
+    <button class="close-x" onclick="document.getElementById('modModal').classList.remove('open')">×</button>
+    <div class="brand" style="padding-top:6px"><h1 style="font-size:20px">⚙️ Moderación</h1></div>
+    <div class="hint">Solo tú ves este menú. Los demás ven «en pausa» cuando la detienes.</div>
+    <button class="btn btn-dark" id="modPausa" onclick="Online.modPausa()">⏸ Pausar</button>
+    <button class="btn btn-dark" onclick="Online.modSaltar()">⏭ Saltar la espera de este paso</button>
+    <button class="btn btn-ghost" onclick="Online.modTerminar()">🏁 Terminar la partida y volver al lobby</button>
+  </div>
+</div>
+
+<!-- MARCADOR MODAL -->
 <div class="modal-bg" id="marcadorModal">
   <div class="modal">
     <button class="close-x" onclick="document.getElementById('marcadorModal').classList.remove('open')">×</button>
@@ -577,6 +597,7 @@ select:disabled{opacity:.4;}
 <script src="js/data.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/flow.js"></script>
+<script src="js/auto.js"></script>
 <script src="js/app.js"></script>
 <script src="js/online.js"></script>
 </body>

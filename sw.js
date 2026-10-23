@@ -4,12 +4,12 @@
    · Imágenes de cartas y fuentes (otros dominios): se guardan la primera vez que se ven; sin conexión se usa el emoji de reserva.
    · Nunca se intercepta nada de la señalización de PeerJS (WebSocket / API) ni el CDN de PeerJS: el online siempre va a la red.
    Al cambiar archivos de la app, sube VERSION para que los móviles descarten la caché antigua. */
-const VERSION = 'v5';
+const VERSION = 'v7';
 const SHELL = 'aldea-shell-' + VERSION;
 const EXTRA = 'aldea-extra-' + VERSION;
 const ARCHIVOS = [
   './', 'index.html', 'manifest.webmanifest',
-  'js/data.js', 'js/engine.js', 'js/flow.js', 'js/app.js', 'js/online.js', 'js/transport-peer.js', 'js/qrcode.js',
+  'js/data.js', 'js/engine.js', 'js/flow.js', 'js/auto.js', 'js/app.js', 'js/online.js', 'js/transport-peer.js', 'js/qrcode.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'
 ];
 
