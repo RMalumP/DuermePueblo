@@ -1,0 +1,9 @@
+{
+  "name": "duerme-pueblo",
+  "private": true,
+  "description": "La aldea se duerme — asistente de narrador (local) y futuro modo online",
+  "scripts": {
+    "test": "node --test tests/engine.test.js",
+    "test:ui": "node tests/ui-reparto.js && node tests/ui-guiado.js"
+  }
+}
