@@ -453,3 +453,82 @@ test('Niña a distancia: si la descubren (ninaVista) muere en lugar de la vícti
   const r=R(g,{manada:2,ninaVista:true});
   assert.ok(!g.assigned[0].vivo&&g.assigned[2].vivo&&r.muertes.length===1);
 });
+
+/* ===== Puntuación (tabla y ejemplos del libro, §9) ===== */
+const fila=(rows,i)=>rows.find(r=>r.idx===i);
+test('puntuación ej.1: Lobo Alfa que sobrevive y victoria de lobos = 12',()=>{
+  const g=mk(['loboAlfa','aldeano']);E.kill(g,1,'noche');
+  assert.equal(fila(E.puntuar(g,E.checkWin(g)),0).total,12);
+});
+test('puntuación ej.2: Lobo Judas gana solo habiendo matado 2 lobos = 32',()=>{
+  const g=mk(['loboJudas','lobo','lobo','aldeano']);
+  R(g,{judas:1});R(g,{judas:2});E.kill(g,3,'noche');
+  const w=E.checkWin(g);assert.equal(w.k,'judas');
+  const f=fila(E.puntuar(g,w),0);assert.equal(f.superv,30);assert.equal(f.poder,2);assert.equal(f.equipo,0);assert.equal(f.total,32);
+});
+test('puntuación ej.3: Aldeano que sobrevive con victoria de la aldea = 3',()=>{
+  const g=mk(['aldeano','aldeano','lobo']);E.kill(g,2,'voto');
+  assert.equal(fila(E.puntuar(g,E.checkWin(g)),0).total,3);
+});
+test('puntuación ej.4: el Borracho que engaña a la aldea = 20, sin equipo ni supervivencia',()=>{
+  const g=mk(['borracho','lobo','aldeano','aldeano']);E.kill(g,0,'voto');
+  const rows=E.puntuar(g,E.checkWin(g));
+  assert.deepEqual([fila(rows,0).equipo,fila(rows,0).superv,fila(rows,0).total],[0,0,20]);
+});
+test('puntuación ej.5: el Borracho que no engaña pero gana con la aldea = 3',()=>{
+  const g=mk(['borracho','aldeano','lobo']);E.nextCycle(g);E.kill(g,2,'voto');
+  assert.equal(fila(E.puntuar(g,E.checkWin(g)),0).total,3);
+});
+test('puntuación ej.6: Bruja muerta que envenenó a un lobo, victoria de la aldea = 10',()=>{
+  const g=mk(['bruja','lobo','aldeano','aldeano','aldeano']);
+  R(g,{manada:null,brujaVeneno:1});
+  E.kill(g,0,'voto');E.kill(g,0,'voto');
+  g.assigned[0].vivo=false;
+  const w=E.checkWin(g);assert.equal(w.k,'aldea');
+  assert.equal(fila(E.puntuar(g,w),0).total,10);
+});
+test('puntuación ej.7: Cazador que se lleva a un lobo y victoria de lobos = 5',()=>{
+  const g=mk(['cazador','lobo','lobo','aldeano']);
+  E.kill(g,0,'noche');E.resolvePending(g,'cazador',1);E.kill(g,3,'noche');
+  const w=E.checkWin(g);assert.equal(w.k,'lobos');
+  const f=fila(E.puntuar(g,w),0);assert.equal(f.total,5);assert.equal(f.equipo,0);
+});
+test('puntuación ej.8: Cazador que se lleva a un aldeano y victoria de la aldea = 0',()=>{
+  const g=mk(['cazador','aldeano','aldeano','lobo']);
+  E.kill(g,0,'noche');E.resolvePending(g,'cazador',1);E.kill(g,3,'voto');
+  const w=E.checkWin(g);assert.equal(w.k,'aldea');
+  assert.equal(fila(E.puntuar(g,w),0).total,0);
+});
+test('puntuación ej.9: Bruja y Lobeco enamorados ganan juntos: 5 y 10',()=>{
+  const g=mk(['bruja','lobo','aldeano','aldeano']);
+  g.assigned[0].amor=g.assigned[1].amor=true;
+  R(g,{brujaVeneno:2});
+  E.kill(g,3,'voto');
+  const w=E.checkWin(g);assert.equal(w.k,'enamorados');
+  const rows=E.puntuar(g,w);
+  assert.equal(fila(rows,0).total,5);assert.equal(fila(rows,1).total,10);
+  assert.equal(fila(rows,1).equipo+fila(rows,1).superv,0);
+});
+test('puntuación: supervivencia por carta (Vidente 3, Jabalí 2, Alfa 10, Rojo 8, Niño lobo 5)',()=>{
+  const g=mk(['vidente','jabali','loboAlfa','loboRojo','ninoSalvaje','aldeano']);
+  g.assigned[4].lobo=true;
+  const rows=E.puntuar(g,{k:'aldea'});
+  assert.deepEqual([0,1,2,3,4,5].map(i=>fila(rows,i).superv),[3,2,10,8,5,1]);
+});
+test('puntuación: un maldito (Vidente/Lobo) puntúa como lobo y juega en el equipo de los lobos',()=>{
+  const g=mk(['vidente','lobo','aldeano']);g.assigned[0].lobo=true;
+  const f=fila(E.puntuar(g,{k:'lobos'}),0);assert.equal(f.equipo,2);assert.equal(f.superv,5);
+});
+test('puntuación: Cazador, Inquisidor, Niña y Zorra suman sus puntos de poder',()=>{
+  let g=mk(['inquisidor','lobo','aldeano','aldeano']);g.initialWolves=1;
+  R(g,{inquisidor:[2]});assert.equal(fila(E.puntuar(g,null),0).poder,-3);
+  g=mk(['inquisidor','lobo','aldeano']);g.initialWolves=1;R(g,{inquisidor:[1]});assert.equal(fila(E.puntuar(g,null),0).poder,30);
+  g=mk(['nina','lobo','aldeano']);R(g,{manada:2,ninaVista:true});assert.equal(fila(E.puntuar(g,null),0).poder,-1);
+  g=mk(['nina','lobo']);g.ninaDenuncio=true;assert.equal(fila(E.puntuar(g,null),0).poder,3);
+  g=mk(['zorra','aldeano','lobo','aldeano']);R(g,{zorra:1});R(g,{zorra:3});assert.equal(fila(E.puntuar(g,null),0).poder,2,'1 punto por cada ronda acertada');
+});
+test('puntuación: Lobo Judas vivo pero no solo no cobra los 30; ajuste manual suma',()=>{
+  const g=mk(['loboJudas','lobo','aldeano']);g.ajustes={2:4};
+  const rows=E.puntuar(g,{k:'lobos'});
+  assert.equal(fila(rows,0).superv,0);assert.equal(fila(rows,2).poder,4);
+});

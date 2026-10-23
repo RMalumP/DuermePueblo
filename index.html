@@ -281,6 +281,7 @@ select:disabled{opacity:.4;}
   <button class="btn btn-ghost" onclick="Online.abrir()">🌐 Jugar online</button>
   <button class="btn btn-dark" id="btnInstalar" style="display:none" onclick="instalarApp()">📲 Instalar la app</button>
   <div class="info-box" id="hintIOS" style="display:none;margin-top:10px">📲 Para instalarla en iPhone/iPad: pulsa <b>Compartir</b> (el cuadrado con la flecha) y luego <b>Añadir a pantalla de inicio</b>.</div>
+  <button class="btn btn-ghost" onclick="showMarcador()">🏆 Marcador</button>
   <button class="btn btn-ghost" onclick="openRules()">📖 Reglas</button>
   <div class="foot" style="margin-top:18px">Talasnal · Serra da Lousã · 1911</div>
 </section>
@@ -439,6 +440,7 @@ select:disabled{opacity:.4;}
     <button class="iconbtn" onclick="openRules()">Reglas</button>
   </div>
   <div class="win-banner" id="pjWin"><span class="wb-em" id="pjWinEm"></span><div class="wb-t" id="pjWinT"></div><div class="wb-d" id="pjWinD" style="white-space:pre-line"></div></div>
+  <div class="card-panel" id="pjPuntos" style="display:none"></div>
   <div class="cycle-box">
     <div class="cycle-pill"><div class="cn">🌙 Noche</div><div class="cv" id="pjNight">1</div></div>
     <div class="cycle-pill"><div class="cn">☀️ Día</div><div class="cv" id="pjDay">0</div></div>
@@ -511,7 +513,16 @@ select:disabled{opacity:.4;}
   </div>
 </div>
 
- <!-- VOTE MODAL -->
+ <!-- MARCADOR MODAL -->
+<div class="modal-bg" id="marcadorModal">
+  <div class="modal">
+    <button class="close-x" onclick="document.getElementById('marcadorModal').classList.remove('open')">×</button>
+    <div class="brand" style="padding-top:6px"><h1 style="font-size:20px">🏆 Marcador</h1></div>
+    <div id="marcadorBody"></div>
+  </div>
+</div>
+
+<!-- VOTE MODAL -->
 <div class="modal-bg" id="voteModal">
   <div class="modal">
     <button class="close-x" onclick="closeVoteModal()">×</button>

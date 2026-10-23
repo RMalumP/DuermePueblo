@@ -7,6 +7,11 @@ const {C,OPTIONAL}=_PD;
 const WOLF_ROLES=['lobo','loboAlfa','loboJudas','loboRojo'];
 
 /* ===== utilidades ===== */
+// Puntos de Poder (tabla del libro, §9): se acumulan en game.poder[idx] durante la partida y se suman al final en puntuar().
+function sumaPoder(game,idx,v,motivo){
+  if(!game.poder)game.poder={};if(!game.poderLog)game.poderLog=[];
+  game.poder[idx]=(game.poder[idx]||0)+v;game.poderLog.push({idx,v,motivo});
+}
 function shuffle(a,rng){const r=rng||Math.random;for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function recWolvesFor(n){if(n<=11)return 2;if(n<=16)return 3;if(n<=20)return 4;return 5;}
 function mkPlayer(i,name,roles,isNar){return{idx:i,name,roles:roles.slice(),isNar:!!isNar,vivo:true,amor:false,lobo:false,modelo:false,inmune:false,preso:false,insignia:false,revived:false,robado:false,stolenCard:null,deathCause:null};}
@@ -135,6 +140,7 @@ function resolvePending(game,tipo,targetIdx){
   if(targetIdx===null||targetIdx===undefined)return[];
   if(tipo==='cazador'){
     const hunter=game.assigned[item.idx],target=game.assigned[targetIdx];
+    if(target&&target.vivo)sumaPoder(game,item.idx,isWolf(target)?5:-2,isWolf(target)?'El Cazador se lleva a un lobo':'El Cazador se lleva a un aldeano');
     return[`🏹 ${hunter.name} se lleva a ${target.name}`,...kill(game,targetIdx,'cazador',item.night)];
   }
   if(tipo==='insignia'){setInsignia(game,targetIdx);return[`👮 Alguacil: ${game.assigned[targetIdx].name}`];}
@@ -264,7 +270,7 @@ function resolveNight(game,a){
     if(!alfaDisponible(game))aviso('El Lobo Alfa ya usó su poder (o no está vivo): la víctima es devorada.');
     else{v1.lobo=true;game.alfaUsada=true;rep.info.maldito=v1.idx;}
   }
-  if(a.ninaVista&&nina)victims.push({idx:nina.idx,causa:'noche'}); // la Niña muere en silencio, en lugar de la víctima elegida
+  if(a.ninaVista&&nina){victims.push({idx:nina.idx,causa:'noche'});sumaPoder(game,nina.idx,-1,'La Niña ha sido vista por los lobos');} // la Niña muere en silencio, en lugar de la víctima elegida
   else if(v1&&!isWolf(v1)&&rep.info.maldito===undefined)victims.push({idx:v1.idx,causa:'noche'});
 
   // Lobo Rojo
@@ -294,12 +300,12 @@ function resolveNight(game,a){
     const t=valid(game,a.brujaVeneno);
     if(game.brujaMuerteUsada)aviso('La Bruja ya usó la poción de muerte.');
     else if(!t)aviso('El veneno necesita un jugador vivo.');
-    else{game.brujaMuerteUsada=true;if(!victims.some(x=>x.idx===t.idx))victims.push({idx:t.idx,causa:'veneno'});}
+    else{game.brujaMuerteUsada=true;sumaPoder(game,br.idx,isWolf(t)?8:-5,isWolf(t)?'Veneno sobre un lobo':'Veneno sobre un aldeano');if(!victims.some(x=>x.idx===t.idx))victims.push({idx:t.idx,causa:'veneno'});}
   }
   // Vidente / Zorra (informan al narrador; no cambian el estado salvo la Zorra)
   if(act.vidente&&valid(game,a.vidente))rep.info.vidente=videnteVe(game,a.vidente);
   if(act.zorra&&!game.zorraPerdida&&valid(game,a.zorra)){
-    const hay=zorraVe(game,a.zorra);rep.info.zorra=hay;
+    const hay=zorraVe(game,a.zorra);rep.info.zorra=hay;if(hay)sumaPoder(game,act.zorra.idx,1,'Ronda acertada de la Zorra');
     if(!hay){game.zorraPerdida=true;rep.info.zorraPierde=true;}
   }
   // Policía (un uso de cada poder; sobre sí mismo está permitido)
@@ -320,8 +326,8 @@ function resolveNight(game,a){
       else{
         game.inquisidorUsado=true;
         const hits=objs.filter(isWolf).length;
-        if(hits>=req.aciertos){game.inquisidorWin=inq.idx;rep.info.inquisidor='acierta';extraM.push(`⚖️ El Inquisidor ha acertado: la aldea ha ganado`);}
-        else{rep.info.inquisidor='falla';inqMuere=inq.idx;}
+        if(hits>=req.aciertos){game.inquisidorWin=inq.idx;sumaPoder(game,inq.idx,30,'El Inquisidor acierta');rep.info.inquisidor='acierta';extraM.push(`⚖️ El Inquisidor ha acertado: la aldea ha ganado`);}
+        else{rep.info.inquisidor='falla';inqMuere=inq.idx;sumaPoder(game,inq.idx,-3,'El Inquisidor falla');}
       }
     }
   }
@@ -343,6 +349,7 @@ function resolveNight(game,a){
   const avisosKill=[];
   orden.forEach(m=>{avisosKill.push(...kill(game,m.idx,m.causa,true));});
   game.assigned.filter(p=>!p.vivo&&!antes.has(p.idx)).forEach(p=>rep.muertes.push({idx:p.idx,causa:p.deathCause}));
+  if(act.loboJudas)rep.muertes.filter(m=>m.causa==='judas').forEach(()=>sumaPoder(game,act.loboJudas.idx,1,'El Lobo Judas mata a un lobo'));
   // Anuncio de la mañana: nunca se explica cómo ni por qué. Un maldito por el Alfa no se menciona: la aldea oye «nadie ha muerto».
   rep.muertes.forEach(m=>{
     const p=game.assigned[m.idx];
@@ -406,6 +413,44 @@ function setEnamorados(game,i,j){
   a.amor=b.amor=true;return true;
 }
 
+/* ===== puntuación (tabla del libro, §9) ===== */
+// Puntos de Supervivencia por carta. Lobo Judas: 30 solo si es el único superviviente. Niño Salvaje: 1 como aldeano, 5 como lobo.
+const SURV={lobo:5,loboAlfa:10,loboRojo:8,loboJudas:30,aldeano:1,careto:1,cupido:1,heredera:1,ladron:1,borracho:1,bruja:1,cazador:1,inquisidor:1,nina:1,zorra:1,jabali:2,medium:2,policia:2,rata:2,vidente:3,ninoSalvaje:1};
+const PUNTOS_EQUIPO=2,PUNTOS_PAREJA=10,PUNTOS_BORRACHO=20,PUNTOS_NINA_DENUNCIA=3;
+function cartaEfectiva(p){return p.roles.length>1&&p.roles[0]==='ladron'?p.roles[1]:p.roles[0];}
+function puntosSupervivencia(p){
+  const c=cartaEfectiva(p);
+  if(isWolf(p))return WOLF_ROLES.includes(c)?SURV[c]:SURV.lobo;   // maldito o convertido: puntúa como Lobeco
+  return SURV[c]||1;
+}
+// win = resultado de checkWin(game). Devuelve una fila por jugador: {idx,name,equipo,superv,poder,pareja,total,detalle}.
+function puntuar(game,win){
+  const alive=alivePlayers(game),rows=[];
+  const soloJudas=win&&win.k==='judas';
+  game.assigned.filter(p=>!p.isNar).forEach(p=>{
+    const r={idx:p.idx,name:p.name,equipo:0,superv:0,poder:0,pareja:0,detalle:[]};
+    const judas=p.roles.includes('loboJudas'),amante=p.amor;
+    const borrachoGana=win&&win.k==='borracho'&&game.borrachoWin===p.idx;
+    if(win&&!judas&&!amante&&!borrachoGana){
+      if((win.k==='aldea'&&!isWolf(p))||(win.k==='lobos'&&isWolf(p)))r.equipo=PUNTOS_EQUIPO;
+    }
+    if(p.vivo&&!amante&&!borrachoGana){
+      if(judas){if(soloJudas)r.superv=SURV.loboJudas;}
+      else r.superv=puntosSupervivencia(p);
+    }
+    if(win&&win.k==='enamorados'&&amante)r.pareja=PUNTOS_PAREJA;
+    r.poder=(game.poder&&game.poder[p.idx])||0;
+    (game.poderLog||[]).filter(x=>x.idx===p.idx).forEach(x=>r.detalle.push((x.v>0?'+':'')+x.v+' '+x.motivo));
+    if(borrachoGana){r.poder+=PUNTOS_BORRACHO;r.detalle.push('+20 El Borracho engaña a la aldea');}
+    if(game.ninaDenuncio&&p.roles.includes('nina')){r.poder+=PUNTOS_NINA_DENUNCIA;r.detalle.push('+3 La Niña denuncia a los lobos');}
+    const aj=(game.ajustes&&game.ajustes[p.idx])||0;
+    if(aj){r.poder+=aj;r.detalle.push((aj>0?'+':'')+aj+' ajuste manual');}
+    r.total=r.equipo+r.superv+r.poder+r.pareja;
+    rows.push(r);
+  });
+  return rows;
+}
+
 /* ===== victoria ===== */
 function extras(game){
   const alive=alivePlayers(game),res=[];
@@ -417,29 +462,29 @@ function conExtras(game,w){const ex=extras(game);if(ex.length)w.d+='\n\n'+ex.joi
 function checkWin(game){
   if(game.pending.length)return null; // aún hay decisiones por resolver (Cazador, Insignia)
   if(game.borrachoWin!==null&&game.borrachoWin!==undefined)
-    return{em:'🍷',t:'El Borracho gana',d:'¡Lo ha conseguido! Ha convencido al pueblo de que era un lobo y le lincharon en la primera ronda.'};
+    return{k:'borracho',em:'🍷',t:'El Borracho gana',d:'¡Lo ha conseguido! Ha convencido al pueblo de que era un lobo y le lincharon en la primera ronda.'};
   if(game.inquisidorWin!==null&&game.inquisidorWin!==undefined){
     const inq=game.assigned[game.inquisidorWin];
-    return conExtras(game,{em:'⚖️',t:'La aldea y el Inquisidor ganan',d:`${inq?inq.name:'El Inquisidor'} señaló a los lobos con acierto: la aldea despierta sabiendo que ha ganado.`});
+    return conExtras(game,{k:'aldea',inq:true,em:'⚖️',t:'La aldea y el Inquisidor ganan',d:`${inq?inq.name:'El Inquisidor'} señaló a los lobos con acierto: la aldea despierta sabiendo que ha ganado.`});
   }
   const alive=alivePlayers(game);
-  if(!alive.length)return{em:'☠️',t:'Nadie sobrevive',d:'No queda nadie con vida en Talasnal.'};
+  if(!alive.length)return{k:'nadie',em:'☠️',t:'Nadie sobrevive',d:'No queda nadie con vida en Talasnal.'};
   const wolves=alive.filter(isWolf),villagers=alive.filter(p=>!isWolf(p)),lovers=alive.filter(p=>p.amor);
   if(alive.length===2&&lovers.length===2)
-    return{em:'💘',t:'Los Enamorados ganan',d:'Los dos enamorados han sobrevivido a todos. El amor vence siempre.'};
+    return{k:'enamorados',em:'💘',t:'Los Enamorados ganan',d:'Los dos enamorados han sobrevivido a todos. El amor vence siempre.'};
   if(wolves.length===0)
-    return conExtras(game,{em:'🏘️',t:'Los Aldeanos ganan',d:'¡El pueblo ha triunfado! Los lobos han sido eliminados. Talasnal puede dormir tranquilo.'});
+    return conExtras(game,{k:'aldea',em:'🏘️',t:'Los Aldeanos ganan',d:'¡El pueblo ha triunfado! Los lobos han sido eliminados. Talasnal puede dormir tranquilo.'});
   if(villagers.length===0){
     if(alive.length===1&&alive[0].roles.includes('loboJudas'))
-      return{em:'🗡️',t:'El Lobo Judas gana',d:'El traidor ha eliminado a todos y es el único superviviente. Nadie confiaba en él... y tenían razón.'};
-    return conExtras(game,{em:'🐺',t:'Los Lobos ganan',d:'La manada ha devorado a todos los aldeanos. Talasnal ha caído en la oscuridad.'});
+      return{k:'judas',em:'🗡️',t:'El Lobo Judas gana',d:'El traidor ha eliminado a todos y es el único superviviente. Nadie confiaba en él... y tenían razón.'};
+    return conExtras(game,{k:'lobos',em:'🐺',t:'Los Lobos ganan',d:'La manada ha devorado a todos los aldeanos. Talasnal ha caído en la oscuridad.'});
   }
   return null;
 }
 // Aviso para el narrador: con tantos lobos como aldeanos, un empate en la votación acaba dando la victoria a los lobos.
 function ventajaLobos(game){const a=alivePlayers(game);return a.filter(isWolf).length>=a.filter(p=>!isWolf(p)).length;}
 
-const API={WOLF_ROLES,NINA_RIESGO,ninaPuede,ninaEspia,revealList,shuffle,recWolvesFor,mkPlayer,isWolf,alivePlayers,selOpt,selWolf,selVillage,narratorPlan,totalCards,capacity,maxWolves,
+const API={WOLF_ROLES,sumaPoder,puntuar,SURV,NINA_RIESGO,ninaPuede,ninaEspia,revealList,shuffle,recWolvesFor,mkPlayer,isWolf,alivePlayers,selOpt,selWolf,selVillage,narratorPlan,totalCards,capacity,maxWolves,
   createGame,kill,revive,resolvePending,setInsignia,startNight,nextCycle,neighbors,holders,actor,alfaDisponible,rojoDisponible,inquisidorObjetivos,jabaliHuele,videnteVe,zorraVe,previewVictims,resolveNight,
   puedeSerVotado,votantes,puedeVotarA,tally,herederaElegible,heredar,lynch,setModelo,setEnamorados,ventajaLobos,
   ladronPlayer,ladronMustChoose,ladronChooseExterno,ladronChooseIntercambio,caretoSwap,checkWin};

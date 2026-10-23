@@ -307,7 +307,7 @@ function repartir(){
 function alLobby(){
   O.partida=false;
   jugadoresSala().forEach(j=>O.T.enviar(j.id,{tipo:'rol',vs:null}).catch(()=>{}));
-  O.T.enviar('todos',{tipo:'estado',phase:'lobby',jug:null,ganador:null,noche:1,dia:0}).catch(()=>{});
+  O.T.enviar('todos',{tipo:'estado',phase:'lobby',jug:null,ganador:null,puntos:null,noche:1,dia:0}).catch(()=>{});
   if(O.T.guardarExtra)O.T.guardarExtra({});
   show('scr-lobby');renderLobby();
 }
@@ -332,7 +332,8 @@ function vistaDe(p){
 function difundir(){
   if(!O.activo||!O.host||!O.partida||!hayJuego())return;
   const w=game.winner;
-  const pub={phase:w?'fin':'jugando',noche:game.night,dia:game.day,ganador:w?{em:w.em,t:w.t,d:w.d}:null,
+  const pts=w?Engine.puntuar(game,w).sort((x,y)=>y.total-x.total).map(r=>({n:r.name,t:r.total,d:[r.equipo&&'equipo '+r.equipo,r.superv&&'superv. '+r.superv,r.poder&&'poder '+r.poder,r.pareja&&'pareja '+r.pareja].filter(Boolean).join(' · ')})):null;
+  const pub={phase:w?'fin':'jugando',noche:game.night,dia:game.day,ganador:w?{em:w.em,t:w.t,d:w.d}:null,puntos:pts,
     jug:game.assigned.map(p=>({n:p.name,v:p.vivo?1:0,c:p.vivo?null:p.roles.slice()}))};
   const priv={};game.assigned.forEach(p=>{if(p.pid)(priv[p.pid]=priv[p.pid]||[]).push(vistaDe(p));}); // un móvil puede llevar varios asientos
   const clave=JSON.stringify([pub,priv]);
@@ -381,6 +382,9 @@ function renderJugador(){
   $('pjNight').textContent=p.noche||1;$('pjDay').textContent=p.dia||0;
   const wb=$('pjWin');
   if(p.ganador){$('pjWinEm').textContent=p.ganador.em;$('pjWinT').textContent=p.ganador.t;$('pjWinD').textContent=p.ganador.d;wb.classList.add('show');}else wb.classList.remove('show');
+  const pp=$('pjPuntos');
+  if(p.puntos&&p.puntos.length){pp.style.display='block';pp.innerHTML='<h2 class="section">Puntuación</h2>'+p.puntos.map(r=>'<div class="res-row"><div class="rnum">'+r.t+'</div><div class="rinfo"><div class="rpn">'+esc(r.n)+'</div><div class="rroles" style="font-size:11.5px;color:var(--muted)">'+(r.d||'—')+'</div></div></div>').join('');}
+  else pp.style.display='none';
   const est=$('pjEstado');est.innerHTML='';
   if(!v){est.innerHTML='<div class="hint">Esperando tu carta…</div>';}
   else{

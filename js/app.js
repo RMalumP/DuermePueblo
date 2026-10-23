@@ -398,7 +398,9 @@ function showFinModal(){
   const w=Engine.checkWin(game);
   if(w){
     body.innerHTML=`<div class="win-modal-msg"><span class="wme">${w.em}</span><div class="wmt">${w.t}</div><div class="wmd">${w.d}</div></div>
+      <div id="puntosBox"></div>
       <button class="btn btn-primary" onclick="confirmHome();closeFinModal()" style="margin-top:4px">🏠 Nueva partida</button>`;
+    renderPuntos(w);
   } else {
     const alive=game.assigned.filter(p=>p.vivo&&!p.isNar);
     const dead=game.assigned.filter(p=>!p.vivo&&!p.isNar);
@@ -412,6 +414,43 @@ function showFinModal(){
   }
   document.getElementById('finModal').classList.add('open');
 }
+/* ===== PUNTUACIÓN Y MARCADOR ===== */
+function renderPuntos(w){
+  const box=document.getElementById('puntosBox');if(!box)return;
+  const rows=Engine.puntuar(game,w).sort((x,y)=>y.total-x.total||x.idx-y.idx);
+  const nina=game.assigned.find(p=>p.roles.includes('nina')&&!p.isNar);
+  let h='<h2 class="section" style="margin-top:14px">Puntuación</h2>';
+  rows.forEach(r=>{
+    const det=[r.equipo?'equipo '+r.equipo:'',r.superv?'superv. '+r.superv:'',r.poder?'poder '+(r.poder>0?'+':'')+r.poder:'',r.pareja?'pareja '+r.pareja:''].filter(Boolean).join(' · ')||'—';
+    h+=`<div class="res-row"><div class="rnum">${r.total}</div><div class="rinfo"><div class="rpn">${esc(r.name)}</div><div class="rroles" style="font-size:11.5px;color:var(--muted)">${det}${r.detalle.length?'<br>'+r.detalle.map(esc).join('<br>'):''}</div></div>
+      <button class="rnd" style="width:34px;height:34px;font-size:18px" onclick="ajustePuntos(${r.idx},-1)">−</button><button class="rnd" style="width:34px;height:34px;font-size:18px" onclick="ajustePuntos(${r.idx},1)">+</button></div>`;
+  });
+  if(nina)h+=`<button class="btn-toggle${game.ninaDenuncio?' on':''}" onclick="toggleNinaDenuncia()">👧 La Niña denunció a los lobos (+3)${game.ninaDenuncio?' ✓':''}</button>`;
+  h+=`<button class="btn btn-dark btn-sm" ${game.sumado?'disabled':''} onclick="sumarMarcador()">${game.sumado?'✓ Sumado al marcador':'➕ Sumar al marcador'}</button>`;
+  h+='<div class="hint">Puntos del libro: equipo 2, supervivencia según carta, poder según acciones, pareja 10. Los botones − y + corrigen cualquier caso dudoso.</div>';
+  box.innerHTML=h;
+}
+function ajustePuntos(idx,d){if(!game.ajustes)game.ajustes={};game.ajustes[idx]=(game.ajustes[idx]||0)+d;renderPuntos(Engine.checkWin(game));if(window.Online)Online.sync();}
+function toggleNinaDenuncia(){game.ninaDenuncio=!game.ninaDenuncio;renderPuntos(Engine.checkWin(game));if(window.Online)Online.sync();}
+const KEY_MARCADOR='pueblo.marcador';
+function leerMarcador(){try{const m=JSON.parse(localStorage.getItem(KEY_MARCADOR)||'null');if(m&&m.tot)return m;}catch(e){/* nada */}return{partidas:0,tot:{}};}
+function sumarMarcador(){
+  if(game.sumado)return;
+  const w=Engine.checkWin(game);if(!w)return;
+  const m=leerMarcador();m.partidas++;
+  Engine.puntuar(game,w).forEach(r=>{m.tot[r.name]=(m.tot[r.name]||0)+r.total;});
+  try{localStorage.setItem(KEY_MARCADOR,JSON.stringify(m));}catch(e){toast('No se pudo guardar el marcador');return;}
+  game.sumado=true;renderPuntos(w);toast('Sumado al marcador');
+}
+function showMarcador(){
+  const m=leerMarcador(),el=document.getElementById('marcadorBody');
+  const filas=Object.keys(m.tot).sort((x,y)=>m.tot[y]-m.tot[x]);
+  el.innerHTML=(filas.length?filas.map((n,i)=>`<div class="res-row"><div class="rnum">${i+1}</div><div class="rinfo"><div class="rpn">${esc(n)}</div></div><div style="font-family:var(--disp);font-size:20px;color:var(--gold)">${m.tot[n]}</div></div>`).join(''):'<div class="hint">Aún no hay partidas en el marcador. Al terminar una partida, pulsa «Sumar al marcador».</div>')
+    +`<div class="hint" style="margin-top:10px">Partidas sumadas: ${m.partidas}. Se acumula por nombre de jugador.</div>`
+    +(filas.length?'<button class="btn btn-ghost btn-sm" onclick="borrarMarcador()">Borrar el marcador</button>':'');
+  document.getElementById('marcadorModal').classList.add('open');
+}
+function borrarMarcador(){if(confirm('¿Borrar todo el marcador?')){try{localStorage.removeItem(KEY_MARCADOR);}catch(e){/* nada */}showMarcador();}}
 function closeFinModal(){document.getElementById('finModal').classList.remove('open');}
 
 /* ===== MODE 1 ===== */
@@ -881,7 +920,7 @@ function aplicarCfgUI(){
 
 /* ===== PERSISTENCIA: configuración y partida local sobreviven a recargar o reabrir la app ===== */
 const KEY_ESTADO='pueblo.estado.v1';
-const ESTADO_V=1;                 // súbelo si cambia la forma de `game` o `cfg`: se descarta lo guardado con otra versión
+const ESTADO_V=2;                 // súbelo si cambia la forma de `game` o `cfg`: se descarta lo guardado con otra versión
 const PANTALLAS_PARTIDA=['scr-reveal','scr-game','scr-guided','scr-results'];
 let ultimoGuardado='';
 function guardarEstado(){
