@@ -7,7 +7,7 @@ const path=require('path');
   const errs=[];pg.on('pageerror',e=>errs.push('pageerror: '+e.message));
   pg.on('console',m=>{if(m.type()==='error'&&!/net::|Failed to load resource|ERR_/.test(m.text()))errs.push('console: '+m.text());});
   await pg.route(/^https?:\/\//,r=>r.abort());
-  await pg.goto('file://'+path.resolve(__dirname,'../pueblo_duerme_2.html'));
+  await pg.goto('file://'+path.resolve(__dirname,'../index.html'));
   const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)process.exitCode=1;};
   // nombres con HTML (XSS) y config
   await pg.evaluate(()=>{cfg.names[0]='<img src=x onerror="window.__xss=1">';cfg.optional.cazador=true;cfg.optional.cupido=true;cfg.optional.borracho=true;cfg.narrator='random';renderRoles();});

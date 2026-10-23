@@ -7,7 +7,7 @@ const path=require('path');
   const errs=[];pg.on('pageerror',e=>errs.push(e.message));
   await pg.route(/^https?:\/\//,r=>r.abort());
   pg.on('dialog',d=>d.accept());
-  await pg.goto('file://'+path.resolve(__dirname,'../pueblo_duerme_2.html'));
+  await pg.goto('file://'+path.resolve(__dirname,'../index.html'));
   const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)process.exitCode=1;};
   await pg.evaluate(()=>{cfg.mode=2;cfg.narrator='none';cfg.optional.vidente=true;cfg.optional.bruja=true;cfg.optional.policia=true;renderRoles();});
   await pg.click('text=▶ Jugar');

@@ -281,7 +281,7 @@ async function abrirComoAnfitrion(roomId, prueba, nombreJugador, snap, ice) {
   peer.on('error', e => console.warn('PeerJS:', e && (e.type || e.message)));
   peer.on('disconnected', () => { try { if (sala === s && !peer.destroyed) peer.reconnect(); } catch (e) { /* se reintenta en vigilar */ } });
   s.timers.push(setInterval(vigilar, 5000));
-  s.alSalir = () => { try { if (sala === s) difundir({ t: 'pausa' }); } catch (e) { /* nada */ } };
+  s.alSalir = () => { try { if (sala === s) { guardarSnap(); difundir({ t: 'pausa' }); } } catch (e) { /* nada */ } };
   if (globalThis.addEventListener) globalThis.addEventListener('pagehide', s.alSalir);
   persistir();
   setTimeout(() => { if (sala === s) { difundirJug(); difundirEstado(); enviarRol(s.hostUid); } }, 0);
@@ -507,7 +507,7 @@ async function cerrarSala() {
   limpiar(s);
 }
 // Estado del juego del anfitrión (motor): se guarda en el snapshot para recuperar la partida al recargar.
-function guardarExtra(obj) { const s = sala; if (!s || !s.esHost) return; s.extra = JSON.parse(JSON.stringify(obj)); persistir(); }
+function guardarExtra(obj) { const s = sala; if (!s || !s.esHost) return; s.extra = JSON.parse(JSON.stringify(obj)); clearTimeout(s.persistT); guardarSnap(); } // inmediato: el móvil puede matar la pestaña en cualquier momento
 function leerExtra() { const s = sala; return s && s.esHost && s.extra ? JSON.parse(JSON.stringify(s.extra)) : null; }
 // 'local' (red local: mismo wifi/hotspot) · 'internet' (por STUN) · 'relay' (nunca aquí: no hay TURN) · null si no se pudo medir.
 async function tipoConexion(conn) {

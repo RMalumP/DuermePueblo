@@ -6,7 +6,7 @@ const path=require('path');
   const pg=await b.newPage({viewport:{width:420,height:900}});
   const errs=[];pg.on('pageerror',e=>errs.push(e.message));
   await pg.route(/^https?:\/\//,r=>r.abort());
-  await pg.goto('file://'+path.resolve(__dirname,'../pueblo_duerme_2.html'));
+  await pg.goto('file://'+path.resolve(__dirname,'../index.html'));
   const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)process.exitCode=1;};
   for(const lm of ['externo','intercambio']){
     await pg.evaluate(m=>{show('scr-config');cfg.optional.ladron=true;cfg.ladronMode=m;cfg.optional.policia=true;cfg.optional.vidente=true;cfg.narrator='random';cfg.mode=2;renderRoles();},lm);

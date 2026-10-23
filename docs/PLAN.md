@@ -14,8 +14,8 @@
 | 1 | Motor de reglas completo (§11 del libro), pasos de la noche con acciones y votación con Insignia doble | ✅ |
 | 2a | Spike de conectividad (anfitrión + 2-3 móviles: router, hotspot, 4G) | pendiente (necesita móviles reales) |
 | 2b | Transporte PeerJS sin TURN (`js/transport-peer.js`), probado de extremo a extremo con navegadores | ✅ |
-| 2c | Pantallas online: crear/unirse, lobby, QR, diagnóstico de red | pendiente |
-| 3 | Híbrido: carta privada por móvil + narrador guiado + móvil compartido | pendiente |
+| 2c | Pantallas online: crear/unirse, lobby, QR, diagnóstico de red | ✅ |
+| 3 | Híbrido: carta privada por móvil + narrador guiado | ✅ (móvil compartido: pendiente) |
 | 4 | Remoto: acciones nocturnas por móvil, canal de lobos, fases con cronómetro | pendiente |
 | 5 | Día online: votación, chat, interrupciones (Cazador, Heredera, Insignia) | pendiente |
 | 6 | Robustez: snapshot completo del motor, reconexión a mitad de noche | pendiente |
@@ -49,3 +49,12 @@ Puntuación §9 (falta la tabla impresa del libro, que no se lee en el PDF), pas
 - Añadido: eventos efímeros a un jugador o a un grupo (chat de lobos…), snapshot del estado del juego (`guardarExtra/leerExtra`), tipo de conexión por jugador (`local` / `internet`), aviso `pausa` al cerrar el anfitrión.
 - `npm run test:net` levanta un servidor de señalización local y 4 navegadores: contraseña incorrecta, nombre repetido, vistas privadas, acciones con remitente verdadero, recarga de jugador y de anfitrión, expulsar y cerrar.
 - Dos fallos del transporte original de Impostor corregidos aquí: el rechazo por nombre repetido/sala llena/partida en curso llegaba como «conexión cerrada» (se cerraba antes de registrar el motivo), y el anfitrión tardaba ~30 s en notarse al recargar.
+
+## Fases 2c y 3: modo online híbrido
+- `js/online.js`: el anfitrión es el **narrador** (no juega); crea la sala por nombre + contraseña, los jugadores entran con su móvil. Lobby con estado de conexión (🟢/🔴, 📶 red local / 🌐 internet), expulsar, compartir enlace y QR (`js/qrcode.js`, MIT).
+- El narrador usa el modo guiado de siempre; cada cambio (muertes, noche, día, Insignia, conversiones…) se difunde: estado público (vivos/muertos, noche/día, ganador) + vista privada por jugador (sus cartas, si es Lobo y su manada, su pareja, su Modelo). El estado público no incluye las cartas de los vivos.
+- El narrador guarda la partida en cada cambio: si recarga la página, **recupera la partida** y los jugadores se reconectan solos.
+- Un jugador que recarga vuelve a su sala con su identidad (token) y recupera su vista.
+- Al terminar, el narrador puede **volver al lobby** con los mismos jugadores o cerrar la sala.
+- `npm run test:online`: narrador + 5 jugadores en navegadores reales.
+- Pendiente de esta fase: móvil compartido (varios jugadores en un móvil). Las acciones nocturnas que hoy se dicen en voz alta (Ladrón, Cupido, Niño Salvaje, pulgares) pasan a los móviles en la fase 4.
