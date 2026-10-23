@@ -114,7 +114,15 @@ function cargarPeerJS() {
 }
 
 // ---------- servidores STUN (sin TURN) ----------
-async function obtenerIce() { return { iceServers: STUN, avisos: [] }; }
+// TURN opcional (desactivado por defecto): entre redes que no permiten conexión directa (p. ej. anfitrión en wifi y jugador con 4G con NAT de operador)
+// un servidor de relé es lo único que lo arregla. Se puede añadir sin tocar el código: localStorage 'pueblo.peer.turn' o globalThis.PUEBLO_TURN
+// con una lista como [{ urls: 'turn:servidor:3478', username: '…', credential: '…' }]. Con TURN solo hace falta que lo use UNO de los dos extremos.
+function turnExtra() {
+  let l = globalThis.PUEBLO_TURN;
+  if (!l) { try { l = JSON.parse(lsGet(LS + 'turn') || '[]'); } catch (e) { l = []; } }
+  return (Array.isArray(l) ? l : []).filter(x => x && x.urls && [].concat(x.urls).every(u => /^(turn|turns):/.test(String(u))));
+}
+async function obtenerIce() { const t = turnExtra(); return { iceServers: [...STUN, ...t], avisos: t.length ? [] : ['Sin servidor de relé: algunas redes 4G/5G no podrán conectar con redes wifi distintas.'] }; }
 function nuevoPeer(id, iceServers) {
   return new Promise((resolve, reject) => {
     let listo = false;

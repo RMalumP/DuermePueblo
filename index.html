@@ -214,6 +214,8 @@ select:disabled{opacity:.4;}
 .vote-row.blocked{opacity:.45}.vote-row .vn{flex:1;font-size:15px}.vote-row .vc{font-family:var(--disp);font-size:20px;min-width:26px;text-align:center}
 .vote-row .rnd{width:38px;height:38px;font-size:20px}
 .vote-res{font-size:13px;color:var(--cream-d);line-height:1.6;margin:10px 0}
+.alg-player.wrap{flex-wrap:wrap}.seat-ctl{flex:0 0 100%;display:flex;gap:6px;flex-wrap:wrap;padding-left:32px}
+.seat-ctl .iconbtn{padding:7px 9px}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--copper);color:var(--navy-dd);padding:10px 18px;border-radius:30px;font-family:var(--disp);text-transform:uppercase;font-size:12px;letter-spacing:.06em;z-index:90;opacity:0;transition:.3s;pointer-events:none;max-width:90%;text-align:center;}
 .toast.show{opacity:1;}
 </style>
@@ -223,7 +225,6 @@ select:disabled{opacity:.4;}
 
 <!-- CONFIG -->
 <section id="scr-config" class="screen active">
-  <div class="info-box" id="onlineBanner" style="display:none;margin-top:14px"><div id="onlineBannerTxt"></div><button class="btn btn-dark btn-sm" onclick="Online.volverSala()">‹ Volver a la sala</button></div>
   <div class="brand">
     <img class="logo-img" id="brandLogo" alt="A Aldeia Adormece">
     <h1>A Aldeia Adormece</h1>
@@ -239,7 +240,7 @@ select:disabled{opacity:.4;}
     </div>
     <div class="hint">Mínimo 5, máximo 25. El libro recomienda de 8 a 25 jugadores.</div>
   </div>
-  <div class="card-panel">
+  <div class="card-panel" id="panelWolves">
     <h2 class="section">Lobos</h2>
     <div class="stepper">
       <button class="rnd" onclick="changeWolves(-1)">−</button>
@@ -267,12 +268,14 @@ select:disabled{opacity:.4;}
       <div class="warn" id="roleWarn" style="display:none"><span>⚠️</span><span></span></div>
     </div></div>
   </div>
-  <div class="card-panel">
+  <div class="card-panel" id="panelMode">
     <h2 class="section">Modo de juego</h2>
     <div class="mode-pick">
       <div class="mode-card on" id="mode1" onclick="pickMode(1)"><div class="mi">🎴</div><div class="mt">Reparto</div><div class="md">Reparte cartas. Tú narras.</div></div>
       <div class="mode-card" id="mode2" onclick="pickMode(2)"><div class="mi">🧭</div><div class="mt">Guiado</div><div class="md">La app guía paso a paso.</div></div>
     </div>
+    <button class="btn-toggle" id="btnNinaRemota" onclick="toggleNinaRemota()">👧 Niña a distancia · desactivado</button>
+    <div class="hint">Solo para partidas online en modo guiado cuando no todos están en la misma sala. Activada, la Niña espía desde su móvil: ve a un lobo al azar y tiene 1 posibilidad entre 3 de ser descubierta. Desactivada (lo normal), la Niña abre los ojos de verdad en la sala.</div>
   </div>
   <button class="btn btn-primary" onclick="startGame()">▶ Jugar</button>
   <button class="btn btn-ghost" onclick="Online.abrir()">🌐 Jugar online</button>
@@ -418,7 +421,11 @@ select:disabled{opacity:.4;}
   <div id="lbHost">
     <div class="info-box" id="lbCheck"></div>
     <div style="display:flex;gap:8px"><button class="btn btn-dark btn-sm" style="margin-top:0" onclick="Online.compartir()">📨 Compartir enlace</button><button class="btn btn-dark btn-sm" style="margin-top:0" onclick="Online.qr()">🔳 QR</button></div>
-    <button class="btn btn-ghost" onclick="Online.ajustes()">⚙️ Ajustar cartas y lobos</button>
+    <div class="card-panel collap" id="lbOpts" style="margin-top:12px">
+      <div class="head" onclick="toggleCollap('lbOpts')"><span>⚙️ Opciones de partida</span><span class="chev">▾</span></div>
+      <div class="hint" id="lbOptsSum" style="margin-top:6px"></div>
+      <div class="body"><div class="inner" id="lbOptsBody"></div></div>
+    </div>
     <button class="btn btn-primary" id="lbStart" onclick="Online.repartir()">🎴 Repartir cartas y empezar</button>
   </div>
   <div id="lbPlayer" class="hint" style="text-align:center;margin-top:14px">Esperando a que el narrador reparta las cartas…</div>

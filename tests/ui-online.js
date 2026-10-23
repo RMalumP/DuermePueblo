@@ -26,7 +26,7 @@ const until=async(fn,ms=20000)=>{const t=Date.now();while(Date.now()-t<ms){try{i
     await ctx.addInitScript(()=>{window.PUEBLO_PEER_SERVER={host:'127.0.0.1',port:9311,path:'/pueblo',secure:false};});
     const pg=await ctx.newPage();
     pg.on('pageerror',e=>{errs.push(nombre+': '+e.message);});
-    pg.on('dialog',d=>d.accept());
+    pg.on('dialog',d=>d.accept(d.type()==='prompt'?d.defaultValue():undefined));
     await pg.goto('http://127.0.0.1:9312/index.html');
     return{ctx,pg};
   };
@@ -48,44 +48,100 @@ const until=async(fn,ms=20000)=>{const t=Date.now();while(Date.now()-t<ms){try{i
   ok((await H.pg.textContent('#lbList')).includes('🟢'),'se muestran los jugadores conectados');
 
   if(process.env.SHOTS){await wait(800);await H.pg.screenshot({path:process.env.SHOTS+'/lobby-narrador.png'});await P[0].pg.screenshot({path:process.env.SHOTS+'/lobby-jugador.png'});}
-  // el narrador configura y reparte
-  await H.pg.evaluate(()=>{cfg.mode=2;cfg.wolves=2;cfg.optional.vidente=true;cfg.optional.cazador=true;renderRoles();});
+  // opciones de partida: desplegable dentro del lobby (no otra pantalla)
+  ok(await H.pg.evaluate(()=>!!document.querySelector('#lbOptsBody #panelWolves')&&!!document.querySelector('#lbOptsBody #rolesCollap')&&!!document.querySelector('#lbOptsBody #panelMode')),'las opciones están dentro del lobby');
+  ok(await H.pg.evaluate(()=>!document.getElementById('lbOpts').classList.contains('open')),'el desplegable empieza cerrado');
+  await H.pg.click('#lbOpts > .head');
+  ok(await H.pg.evaluate(()=>document.getElementById('lbOpts').classList.contains('open'))&&await H.pg.isVisible('#lbOptsBody #panelMode'),'el desplegable se abre');
+  await H.pg.click('#lbOptsBody #mode2');
+  await H.pg.click('#lbOptsBody #rolesCollap > .head');
+  await H.pg.locator('#lbOptsBody .role-chk',{hasText:'Vidente'}).click();
+  await H.pg.click('#btnNinaRemota');
+  ok(await H.pg.evaluate(()=>cfg.optional.vidente===true&&cfg.mode===2&&cfg.ninaRemota===true),'cartas, modo y Niña a distancia se ajustan desde el desplegable');
+  ok(await until(async()=>(await H.pg.textContent('#lbOptsSum')).includes('Niña a distancia')),'el resumen del desplegable se actualiza');
+  // móvil compartido: el jugador 1 comparte su móvil con un invitado
+  await H.pg.locator('#lbList .alg-player',{hasText:'Jugador1'}).locator('button',{hasText:'+1'}).click();
+  ok(await until(async()=>(await H.pg.locator('#lbList .alg-player').count())===7),'el narrador añade un invitado a un móvil (7 filas con el narrador)');
+  ok(await until(async()=>(await P[2].pg.locator('#lbList .alg-player').count())===7),'los demás jugadores ven al invitado');
+  // orden de la mesa: subir/bajar
+  const nombres=async()=>H.pg.evaluate(()=>seatsParaTest());
+  await H.pg.evaluate(()=>{window.seatsParaTest=()=>Array.from(document.querySelectorAll('#lbList .ap-name')).map(e=>e.textContent);});
+  const antesOrden=await nombres();
+  await H.pg.locator('#lbList .alg-player',{hasText:'Jugador3'}).locator('button',{hasText:'▲'}).click();
+  ok(await until(async()=>{const n=await nombres();return n.findIndex(x=>x.includes('Jugador3'))<antesOrden.findIndex(x=>x.includes('Jugador3'));}),'subir a un jugador cambia el orden de la mesa');
+  ok(await H.pg.evaluate(()=>cfg.players===6&&cfg.names.length===6),'la configuración sigue el número de asientos (6)');
+  ok(await H.pg.evaluate(()=>cfg.wolves===2),'los lobos siguen la recomendación (2) sin tocarlos');
   await H.pg.click('#lbStart');
   ok(await until(()=>activa(H.pg,'scr-guided')),'el narrador entra en el modo guiado');
-  ok(await until(async()=>(await Promise.all(P.map(x=>activa(x.pg,'scr-jugador')))).every(Boolean)),'cada jugador pasa a su pantalla de partida');
-  const roles=await H.pg.evaluate(()=>game.assigned.map(p=>cardsOf(p)));
+  ok(await until(async()=>(await Promise.all(P.map(x=>activa(x.pg,'scr-jugador')))).every(Boolean)),'cada móvil pasa a su pantalla de partida');
+  ok(await H.pg.evaluate(()=>game.assigned.length===6),'la partida tiene 6 jugadores (5 móviles, uno compartido)');
+  const pids=[];for(const x of P)pids.push(await x.pg.evaluate(()=>Online._estado.uid));
+  const esperado=await H.pg.evaluate(ps=>ps.map(pid=>game.assigned.filter(p=>p.pid===pid).map(p=>cardsOf(p))),pids);
   ok(await until(async()=>{
-    for(let i=0;i<5;i++){const v=await P[i].pg.evaluate(()=>Online._estado.vista);if(!v||JSON.stringify(v.cartas)!==JSON.stringify(roles[i]))return false;}return true;
-  }),'cada jugador recibe exactamente su carta');
-  // privacidad: ningún jugador conoce las cartas de los demás ni los lobos ajenos
+    for(let i=0;i<5;i++){const vs=await P[i].pg.evaluate(()=>Online._estado.vistas.map(v=>v.cartas));if(JSON.stringify(vs)!==JSON.stringify(esperado[i]))return false;}return true;
+  }),'cada móvil recibe exactamente las cartas de sus asientos');
+  const compartido=esperado.findIndex(x=>x.length===2);
+  ok(compartido>=0,'hay un móvil con 2 asientos');
+  // privacidad
+  const roles=await H.pg.evaluate(()=>game.assigned.map(p=>cardsOf(p)));
   let fuga=false;
   for(let i=0;i<5;i++){
     const est=await P[i].pg.evaluate(()=>JSON.stringify(Online._estado.pub));
-    const v=await P[i].pg.evaluate(()=>Online._estado.vista);
-    roles.forEach((r,j)=>{if(j!==i&&r[0]!=='aldeano'&&est.includes('"'+r[0]+'"'))fuga=true;});
-    if(!v.lobo&&v.lobos)fuga=true;
+    roles.forEach(r=>{if(r[0]!=='aldeano'&&r[0]!=='nina'&&est.includes('"'+r[0]+'"'))fuga=true;});
   }
   ok(!fuga,'el estado público no filtra roles de jugadores vivos');
+  // móvil compartido: pasar el móvil
+  const PC=P[compartido];
+  ok((await PC.pg.textContent('#pjEstado')).includes('Móvil compartido'),'el móvil compartido lo indica');
+  const tit1=await PC.pg.textContent('#pjTitle');
+  await PC.pg.click('text=Pasar el móvil a');
+  const tit2=await PC.pg.textContent('#pjTitle');
+  ok(tit1!==tit2,'al pasar el móvil cambia de jugador ('+tit1+' → '+tit2+')');
+  ok(await PC.pg.evaluate(()=>!document.querySelector('#pjCards .flip').classList.contains('is-flipped')),'la carta del siguiente jugador empieza oculta');
+  await PC.pg.click('text=Pasar el móvil a');
   const lobos=await H.pg.evaluate(()=>game.assigned.filter(p=>Engine.isWolf(p)).map(p=>p.idx));
   const l0=lobos[0];
-  ok(await until(async()=>{const v=await P[l0].pg.evaluate(()=>Online._estado.vista);return v&&v.lobo&&v.lobos&&v.lobos.length===1;}),'los lobos saben quiénes son sus compañeros');
-  await P[0].pg.click('#pjCards .flip');
-  ok(await P[0].pg.evaluate(()=>document.querySelector('#pjCards .flip').classList.contains('is-flipped')),'tocar la carta la muestra');
+  const pidDe=await H.pg.evaluate(i=>game.assigned[i].pid,l0);
+  const Pl=P[pids.indexOf(pidDe)];
+  // si el lobo comparte móvil, se pasa hasta su asiento
+  for(let k=0;k<3&&await Pl.pg.evaluate(i=>Online._estado.vista.idx!==i,l0);k++)await Pl.pg.click('text=Pasar el móvil a');
+  await Pl.pg.click('#pjCards .flip');
+  ok(await until(async()=>{const v=await Pl.pg.evaluate(()=>Online._estado.vista);return v&&v.lobo&&v.lobos&&v.lobos.length===1&&(await Pl.pg.textContent('#pjEstado')).includes('Tu manada');}),'los lobos saben quiénes son sus compañeros (al mostrar su carta)');
+  ok(await Pl.pg.evaluate(()=>document.querySelector('#pjCards .flip').classList.contains('is-flipped')),'tocar la carta la muestra');
 
-  if(process.env.SHOTS){await P[0].pg.click('#pjCards .flip');await wait(900);await P[l0].pg.click('#pjCards .flip');await wait(900);await P[0].pg.screenshot({path:process.env.SHOTS+'/jugador.png'});await P[l0].pg.screenshot({path:process.env.SHOTS+'/jugador-lobo.png'});}
+  // Niña a distancia: solo puede espiar en el paso de la manada y una vez por noche
+  const nina=await H.pg.evaluate(()=>{const p=game.assigned.find(p=>p.roles.includes('nina'));return p?{idx:p.idx,pid:p.pid,lobo:Engine.isWolf(p)}:null;});
+  ok(!!nina&&!nina.lobo,'hay una Niña (aldea) en la partida');
+  const PN=P[pids.indexOf(nina.pid)];
+  const irSeat=async()=>{for(let k=0;k<3&&await PN.pg.evaluate(i=>Online._estado.vista.idx!==i,nina.idx);k++)await PN.pg.click('text=Pasar el móvil a');if(!await PN.pg.evaluate(()=>Online._estado.revelado))await PN.pg.click('#pjCards .flip');};
+  await irSeat();
+  ok(!(await PN.pg.isVisible('#pjEstado button:has-text("Espiar a los lobos")')),'fuera del paso de la manada la Niña no puede espiar');
+  for(let i=0;i<40&&!(await H.pg.textContent('#stTitle')).includes('La manada');i++)await H.pg.click('#scr-guided .nav-steps .btn-primary');
+  await PN.pg.waitForTimeout(600);await irSeat();
+  ok(await until(()=>PN.pg.isVisible('#pjEstado button:has-text("Espiar a los lobos")')),'en el paso de la manada aparece el botón de espiar');
+  await PN.pg.click('#pjEstado button:has-text("Espiar a los lobos")');
+  ok(await until(async()=>(await PN.pg.textContent('#pjEstado')).includes('Has espiado')),'la Niña ve el nombre de un lobo');
+  const visto=await PN.pg.evaluate(()=>Online._estado.ninaVio.lobo);
+  const nomLobos=await H.pg.evaluate(()=>game.assigned.filter(p=>Engine.isWolf(p)).map(p=>p.name));
+  ok(nomLobos.includes(visto),'el nombre que ve es de un lobo de verdad ('+visto+')');
+  ok(await H.pg.evaluate(()=>game.ninaEspioNoche===game.night),'el narrador registra que espió');
+  ok((await H.pg.textContent('#extraStepUI')).includes('La Niña ha espiado'),'el narrador lo ve en el paso de la manada');
+  await PN.pg.waitForTimeout(500);
+  ok(!(await PN.pg.isVisible('#pjEstado button:has-text("Espiar a los lobos")')),'no puede espiar dos veces la misma noche');
+
   // una muerte y una victoria
-  const idxAld=await H.pg.evaluate(()=>game.assigned.find(p=>!Engine.isWolf(p)&&!p.roles.includes('cazador')).idx);
+  const idxAld=await H.pg.evaluate(()=>game.assigned.find(p=>!Engine.isWolf(p)&&!p.roles.includes('cazador')&&!p.roles.includes('nina')).idx);
   await H.pg.evaluate(i=>{Engine.kill(game,i,'noche');afterAct();},idxAld);
-  ok(await until(async()=>(await P[(idxAld+1)%5].pg.evaluate(i=>Online._estado.pub.jug[i].v,idxAld))===0),'todos ven que el jugador ha muerto');
-  ok(await until(async()=>(await P[idxAld].pg.evaluate(()=>Online._estado.vista.vivo))===false),'el muerto lo sabe en su vista');
-  ok((await P[idxAld].pg.textContent('#pjEstado')).includes('Has muerto'),'y se lo dice la pantalla');
+  const pidAld=await H.pg.evaluate(i=>game.assigned[i].pid,idxAld),PA=P[pids.indexOf(pidAld)];
+  ok(await until(async()=>(await P[(pids.indexOf(pidAld)+1)%5].pg.evaluate(i=>Online._estado.pub.jug[i].v,idxAld))===0),'todos ven que el jugador ha muerto');
+  ok(await until(async()=>(await PA.pg.evaluate(i=>Online._estado.vistas.find(v=>v.idx===i).vivo,idxAld))===false),'el muerto lo sabe en su vista');
   await H.pg.evaluate(ls=>{ls.forEach(i=>Engine.kill(game,i,'voto'));afterAct();},lobos);
   ok(await until(async()=>(await Promise.all(P.map(x=>x.pg.evaluate(()=>document.getElementById('pjWin').classList.contains('show'))))).every(Boolean)),'la victoria aparece en todos los móviles');
 
   // el narrador recarga la página: recupera la partida y los jugadores siguen conectados
   const idxGame=await H.pg.evaluate(()=>JSON.stringify(game.assigned.map(p=>[p.name,p.vivo,p.pid])));
   await H.pg.close();
-  const H2=await H.ctx.newPage();H2.on('pageerror',e=>errs.push('host2: '+e.message));H2.on('dialog',d=>d.accept());
+  const H2=await H.ctx.newPage();H2.on('pageerror',e=>errs.push('host2: '+e.message));H2.on('dialog',d=>d.accept(d.type()==='prompt'?d.defaultValue():undefined));
   await H2.goto('http://127.0.0.1:9312/index.html');
   ok(await until(()=>activa(H2,'scr-guided'),30000),'el narrador recarga y vuelve a su partida');
   {const rec=await H2.evaluate(()=>JSON.stringify(game.assigned.map(p=>[p.name,p.vivo,p.pid])));ok(rec===idxGame,'la partida recuperada es idéntica');if(rec!==idxGame){console.log('   antes:  ',idxGame);console.log('   después:',rec);}}
@@ -95,7 +151,7 @@ const until=async(fn,ms=20000)=>{const t=Date.now();while(Date.now()-t<ms){try{i
   // nueva partida: vuelta al lobby con los mismos jugadores
   await H2.evaluate(()=>Online.alLobby());
   ok(await until(async()=>(await Promise.all(P.map(x=>activa(x.pg,'scr-lobby')))).every(Boolean)),'todos vuelven al lobby');
-  ok(await P[0].pg.evaluate(()=>Online._estado.vista)===null,'las cartas anteriores se borran');
+  ok(await P[0].pg.evaluate(()=>Online._estado.vistas.length)===0,'las cartas anteriores se borran');
   // cerrar sala
   await H2.evaluate(()=>Online.salir());
   ok(await until(async()=>(await Promise.all(P.map(x=>activa(x.pg,'scr-config')))).every(Boolean)),'al cerrar la sala todos vuelven al inicio');

@@ -3,8 +3,8 @@
    Cada jugador entra desde su móvil, ve solo su carta y el estado público. El transporte (PeerJS, solo STUN) se carga bajo demanda:
    abriendo el HTML con doble clic (file://) el modo local sigue funcionando y «Jugar online» avisa de que necesita https. */
 const Online=(function(){
-const O={activo:false,host:false,T:null,uid:null,nombre:'',sala:'',pass:'',jug:[],pub:{},vista:null,net:null,conectado:true,
-  partida:false,syncT:null,ultimoSync:'',flipT:null,cartasKey:'',ses:null};
+const O={activo:false,host:false,T:null,uid:null,nombre:'',sala:'',pass:'',jug:[],pub:{},vista:null,vistas:[],seat:0,revelado:false,ninaVio:null,net:null,conectado:true,
+  partida:false,syncT:null,ultimoSync:'',flipT:null,cartasKey:'',ses:null,cfgN:-1};
 const $=id=>document.getElementById(id);
 const SES='pueblo.online.sesion';
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
@@ -61,10 +61,12 @@ async function conectar(modo){
   finally{ocupado(false);}
 }
 function entrar(r,d){
-  Object.assign(O,{activo:true,host:r.esAnfitrion,uid:r.uid,nombre:d.nombre,sala:d.sala,pass:d.pass,vista:null,pub:{},partida:false,net:null,conectado:true,cartasKey:'',ultimoSync:''});
+  cfg.lobosManual=false;
+  Object.assign(O,{activo:true,host:r.esAnfitrion,uid:r.uid,nombre:d.nombre,sala:d.sala,pass:d.pass,vista:null,vistas:[],seat:0,revelado:false,ninaVio:null,pub:{},partida:false,net:null,conectado:true,cartasKey:'',ultimoSync:'',cfgN:-1});
   lsSet(SES,JSON.stringify({roomId:r.roomId,host:O.host,nombre:d.nombre,sala:d.sala,t:Date.now()}));
   pantalla(true);
   if(O.host){
+    montarOpciones();
     const ex=O.T.leerExtra();
     if(r.reanudada&&ex&&ex.game&&ex.game.assigned){restaurarPartida(ex);return;}
     O.T.enviar('todos',{tipo:'estado',phase:'lobby',ronda:0}).catch(()=>{});
@@ -98,9 +100,9 @@ async function recuperar(){ // al abrir la página: un jugador que recarga vuelv
 }
 function limpiar(){
   clearTimeout(O.syncT);clearTimeout(O.flipT);
-  Object.assign(O,{activo:false,host:false,jug:[],pub:{},vista:null,partida:false,net:null});
+  Object.assign(O,{activo:false,host:false,jug:[],pub:{},vista:null,vistas:[],seat:0,revelado:false,ninaVio:null,partida:false,net:null,cfgN:-1});
   lsDel(SES);pantalla(false);
-  $('onlineBanner').style.display='none';
+  devolverOpciones();
 }
 async function salir(){
   const T=O.T,host=O.host;
@@ -115,8 +117,14 @@ function salirConfirm(){
 function onMsg(m){
   if(!O.activo&&m.tipo!=='sala-cerrada')return;
   switch(m.tipo){
-    case 'estado':{const {tipo,...r}=m;O.pub=Object.assign(O.pub,r);if(!O.host)route();break;}
-    case 'rol':O.vista=m.v||null;if(!O.host)route();break;
+    case 'estado':{const {tipo,...r}=m;O.pub=Object.assign(O.pub,r);if(!O.host)route();else if(enLobby())renderLobby();break;}
+    case 'rol':{
+      O.vistas=Array.isArray(m.vs)?m.vs.filter(Boolean):(m.v?[m.v]:[]);
+      if(O.seat>=O.vistas.length)O.seat=0;
+      O.vista=O.vistas[O.seat]||null; // las cartas solo se reconstruyen si cambian (clave en renderJugador): una actualización no debe taparlas
+      if(!O.host)route();break;}
+    case 'evento':if(m.k==='nina'){O.ninaVio={seat:m.seat,lobo:m.lobo,error:m.error,noche:m.noche};renderJugador();}break;
+    case 'accion':if(O.host)hostAccion(m);break;
     case 'conexion':O.net=m.net;renderLobby();break;
     case 'sala-cerrada':if(O.activo){toast('El narrador ha cerrado la sala');limpiar();show('scr-config');}break;
     case 'expulsado':toast('El narrador te ha expulsado de la sala');limpiar();show('scr-config');break;
@@ -134,42 +142,117 @@ function onCon(c){
   renderLobby();
 }
 
-/* ===== lobby ===== */
+/* ===== asientos: jugadores reales + invitados que comparten móvil (como en El Impostor) ===== */
 function jugadoresSala(){return O.jug.filter(j=>!j.esAnfitrion);}
+function extra(){const e=parse(O.pub.extra,{});return{g:Array.isArray(e.g)?e.g:[],a:(e.a&&typeof e.a==='object')?e.a:{},o:Array.isArray(e.o)?e.o:[]};}
+// Un asiento = una persona que juega. Cada móvil lleva un asiento propio y hasta 2 invitados (id 'g:<móvil>:<k>').
+function seats(){
+  const ex=extra(),out=[];
+  jugadoresSala().forEach(p=>{
+    out.push({id:p.id,nombre:ex.a[p.id]||p.nombre,owner:p.id,conectado:p.conectado,net:p.net,yo:!!p.yo,guest:false});
+    ex.g.filter(x=>x.o===p.id).sort((a,b)=>a.k-b.k).forEach(g=>out.push({id:'g:'+p.id+':'+g.k,nombre:g.n,owner:p.id,k:g.k,conectado:p.conectado,net:null,yo:false,guest:true}));
+  });
+  if(ex.o.length){const pos=id=>{const i=ex.o.indexOf(id);return i<0?1e6:i;};out.sort((a,b)=>pos(a.id)-pos(b.id));}
+  return out;
+}
+const enLobby=()=>(O.pub.phase||'lobby')==='lobby';
+function hostSetExtra(fn){
+  if(!O.host||!enLobby())return;
+  const ex=extra();fn(ex);
+  const txt=JSON.stringify(ex);
+  if(txt.length>2800){toast('Demasiados invitados o cambios de nombre');return;}
+  O.T.enviar('todos',{tipo:'estado',extra:txt}).catch(e=>toast(e.message));
+}
+function nombreLibre(n,exceptoId){return !seats().some(x=>x.id!==exceptoId&&x.nombre.toLowerCase()===n.toLowerCase());}
+function hostAnadirInvitado(owner){
+  if(seats().length>=25){toast('La sala está llena (máximo 25 jugadores)');return;}
+  const n=(prompt('Nombre del jugador que compartirá este móvil:','Jugador '+(seats().length+1))||'').trim().slice(0,24);
+  if(!n)return;
+  if(!nombreLibre(n)){toast('Ya hay un jugador con ese nombre');return;}
+  hostSetExtra(ex=>{const k=ex.g.reduce((m,x)=>Math.max(m,x.k||0),0)+1;ex.g.push({o:owner,n,k});});
+}
+function hostQuitarInvitado(owner,k){hostSetExtra(ex=>{ex.g=ex.g.filter(x=>!(x.o===owner&&(k===undefined||x.k===k)));});}
+function hostMover(id,dir){
+  hostSetExtra(ex=>{const ids=seats().map(x=>x.id),i=ids.indexOf(id),j=i+dir;if(i<0||j<0||j>=ids.length)return;[ids[i],ids[j]]=[ids[j],ids[i]];ex.o=ids;});
+}
+function hostRenombrar(st){
+  const n=(prompt('Nuevo nombre:',st.nombre)||'').trim().slice(0,24);
+  if(!n||n===st.nombre)return;
+  if(!nombreLibre(n,st.id)){toast('Ya hay un jugador con ese nombre');return;}
+  hostSetExtra(ex=>{if(st.guest){const g=ex.g.find(x=>x.o===st.owner&&x.k===st.k);if(g)g.n=n;}else ex.a[st.id]=n;});
+}
+function expulsar(st){
+  if(!confirm('¿Expulsar a '+st.nombre+' de la sala?'))return;
+  O.T.expulsar(st.owner).then(()=>hostQuitarInvitado(st.owner)).catch(e=>toast(e.message));
+}
+
+/* ===== opciones de partida: el desplegable del lobby reutiliza los paneles de la configuración ===== */
+const OPT_IDS=['panelWolves','rolesCollap','panelMode'];
+function montarOpciones(){
+  const box=$('lbOptsBody');
+  if(!box.dataset.escucha){box.dataset.escucha='1';box.addEventListener('click',()=>setTimeout(renderLobby,0));} // el resumen sigue a los cambios
+  OPT_IDS.forEach(id=>{const el=$(id);if(!el||box.contains(el))return;const ph=document.createElement('div');ph.dataset.ph=id;el.replaceWith(ph);box.appendChild(el);});
+}
+function devolverOpciones(){document.querySelectorAll('[data-ph]').forEach(ph=>{const el=$(ph.dataset.ph);if(el)ph.replaceWith(el);});}
+// El número de jugadores y los nombres salen de la sala: la configuración (lobos, cartas recomendadas…) se ajusta a ellos.
+function sincronizarCfg(){
+  const ss=seats(),n=ss.length;
+  cfg.players=Math.max(n,2);cfg.names=ss.map(x=>x.nombre);cfg.narrator='none';cfg.narratorEnabled=false;
+  if(O.cfgN!==n){
+    O.cfgN=n;
+    if(!cfg.lobosManual)cfg.wolves=recWolvesFor(Math.max(n,5)); // los lobos siguen la recomendación mientras el narrador no los toque
+    $('numPlayers').textContent=cfg.players;$('recWolves').textContent=recWolvesFor(cfg.players);
+    clampWolves();syncWolfWarn();renderRoles();checkRoleCapacity();
+  }
+}
+function resumenOpciones(){
+  const e=Engine.selOpt(cfg).length;
+  return `${cfg.wolves} lobo${cfg.wolves===1?'':'s'} · ${e} carta${e===1?'':'s'} opcional${e===1?'':'es'} · ${cfg.mode===2?'Guiado':'Reparto'}`+(cfg.ninaRemota?' · Niña a distancia':'');
+}
+
+/* ===== lobby ===== */
 function renderLobby(){
   if(!O.activo)return;
   $('lbTitle').textContent=O.sala||'Sala';
   $('lbRol').textContent=O.host?'📖 Eres el narrador':'🎮 Jugadores en la sala';
   const box=$('lbList');box.innerHTML='';
-  O.jug.slice().sort((a,b)=>(b.esAnfitrion-a.esAnfitrion)||(a.orden-b.orden)).forEach((j,i)=>{
-    const row=mk('div','alg-player');
-    row.append(mk('div','ap-num',j.esAnfitrion?'📖':String(i)),mk('div','ap-name',esc(j.nombre)+(j.yo?' (tú)':'')+(j.esAnfitrion?' · narrador':'')));
-    row.append(mk('div','ap-cur',(j.conectado?'🟢':'🔴')+' '+netTxt(j.net)));
-    if(O.host&&!j.esAnfitrion){const x=mk('button','iconbtn','Expulsar');x.style.marginLeft='6px';x.onclick=()=>expulsar(j);row.appendChild(x);}
+  const host=O.jug.find(j=>j.esAnfitrion);
+  if(host){const r=mk('div','alg-player');r.append(mk('div','ap-num','📖'),mk('div','ap-name',esc(host.nombre)+(host.yo?' (tú)':'')+' · narrador'),mk('div','ap-cur',host.conectado?'🟢':'🔴'));box.appendChild(r);}
+  const ss=seats(),ex=extra();
+  ss.forEach((st,i)=>{
+    const row=mk('div','alg-player wrap');
+    row.append(mk('div','ap-num',String(i+1)),mk('div','ap-name',(st.guest?'↳ ':'')+esc(st.nombre)+(st.guest?' 👥':'')+(st.yo?' (tú)':'')),
+      mk('div','ap-cur',(st.conectado?'🟢':'🔴')+(st.net?' '+netTxt(st.net):'')));
+    if(O.host&&enLobby()){
+      const ctl=mk('div','seat-ctl');
+      const b=(t,title,fn)=>{const x=mk('button','iconbtn',t);x.type='button';x.title=title;x.onclick=fn;ctl.appendChild(x);};
+      b('▲','Subir en el orden de la mesa',()=>hostMover(st.id,-1));b('▼','Bajar en el orden de la mesa',()=>hostMover(st.id,1));
+      b('✏️','Cambiar nombre',()=>hostRenombrar(st));
+      if(st.guest)b('Quitar','Quitar al invitado',()=>hostQuitarInvitado(st.owner,st.k));
+      else{
+        if(ex.g.filter(x=>x.o===st.owner).length<2)b('👥 +1','Otro jugador comparte este móvil',()=>hostAnadirInvitado(st.owner));
+        b('Expulsar','Expulsar de la sala',()=>expulsar(st));
+      }
+      row.appendChild(ctl);
+    }
     box.appendChild(row);
   });
   $('lbNet').textContent=!O.host&&O.net?'Tu conexión con el narrador: '+netTxt(O.net):'';
   $('lbHost').style.display=O.host?'block':'none';
   $('lbPlayer').style.display=O.host?'none':'block';
   if(O.host){
-    const n=jugadoresSala().length;
-    const w=Math.min(cfg.wolves,Engine.maxWolves(Object.assign({},cfg,{players:Math.max(n,2),narrator:'none',narratorEnabled:false})));
-    const sinCon=jugadoresSala().filter(j=>!j.conectado).length;
-    const cap=Engine.capacity(Object.assign({},cfg,{players:n,narrator:'none',narratorEnabled:false,wolves:w}));
-    let t=`<b>${n}</b> jugador${n===1?'':'es'} · ${w} lobo${w===1?'':'s'} (recomendado ${Engine.recWolvesFor(n)})`;
+    sincronizarCfg();
+    const n=ss.length,sinCon=jugadoresSala().filter(j=>!j.conectado).length,cap=Engine.capacity(cfg);
+    let t=`<b>${n}</b> jugador${n===1?'':'es'} · ${cfg.wolves} lobo${cfg.wolves===1?'':'s'} (recomendado ${Engine.recWolvesFor(n)})`;
+    if(ss.some(x=>x.guest))t+='<br>👥 Hay móviles compartidos: cada persona verá su carta al «pasar el móvil».';
     if(sinCon)t+=`<br>⚠️ ${sinCon} sin conexión`;
     if(n<5)t+='<br>Hacen falta al menos 5 jugadores.';
     else if(!cap.ok)t+='<br>⚠️ '+esc(cap.msg);
     $('lbCheck').innerHTML=t;
-    $('lbStart').disabled=n<5||!cap.ok;$('lbStart').style.opacity=($('lbStart').disabled)?.5:1;
+    $('lbOptsSum').textContent=resumenOpciones();
+    $('lbStart').disabled=n<5||!cap.ok;$('lbStart').style.opacity=$('lbStart').disabled?.5:1;
   }
 }
-function expulsar(j){if(confirm('¿Expulsar a '+j.nombre+'?'))O.T.expulsar(j.id).catch(e=>toast(e.message));}
-function ajustes(){
-  const b=$('onlineBanner');b.style.display='block';$('onlineBannerTxt').innerHTML='🌐 Sala <b>'+esc(O.sala)+'</b>: los jugadores y sus nombres son los de la sala ('+jugadoresSala().length+'). Ajusta cartas y lobos y vuelve.';
-  show('scr-config');
-}
-function volverSala(){$('onlineBanner').style.display='none';show('scr-lobby');renderLobby();}
 
 /* ===== compartir ===== */
 function enlace(){
@@ -209,19 +292,19 @@ function aplicarEnlace(){
 
 /* ===== el narrador reparte ===== */
 function repartir(){
-  const lista=jugadoresSala();
-  if(lista.length<5){toast('Hacen falta al menos 5 jugadores');return;}
-  if(lista.some(j=>!j.conectado)&&!confirm('Hay jugadores sin conexión. ¿Repartir igualmente? Verán su carta al reconectar.'))return;
-  cfg.players=lista.length;cfg.names=lista.map(j=>j.nombre);cfg.narrator='none';cfg.narratorEnabled=false;
+  const ss=seats();
+  if(ss.length<5){toast('Hacen falta al menos 5 jugadores');return;}
+  if(jugadoresSala().some(j=>!j.conectado)&&!confirm('Hay jugadores sin conexión. ¿Repartir igualmente? Verán su carta al reconectar.'))return;
+  sincronizarCfg();
   cfg.wolves=Math.max(1,Math.min(Engine.maxWolves(cfg),cfg.wolves));
   const cap=Engine.capacity(cfg);
   if(!cap.ok){toast(cap.msg);return;}
-  if(!startOnlineGame(lista.map(j=>j.id)))return;
+  if(!startOnlineGame(ss.map(x=>x.owner),ss.map(x=>x.id)))return;
   O.partida=true;sync(true);
 }
 function alLobby(){
   O.partida=false;
-  jugadoresSala().forEach(j=>O.T.enviar(j.id,{tipo:'rol',v:null}).catch(()=>{}));
+  jugadoresSala().forEach(j=>O.T.enviar(j.id,{tipo:'rol',vs:null}).catch(()=>{}));
   O.T.enviar('todos',{tipo:'estado',phase:'lobby',jug:null,ganador:null,noche:1,dia:0}).catch(()=>{});
   if(O.T.guardarExtra)O.T.guardarExtra({});
   show('scr-lobby');renderLobby();
@@ -233,29 +316,49 @@ function sync(ya){
   clearTimeout(O.syncT);
   O.syncT=setTimeout(difundir,ya?0:150);
 }
+function pasoActual(){const st=hayJuego()&&game.steps&&game.steps[game.stepIdx];return st?st.action:null;}
+// La Niña a distancia solo puede espiar mientras la manada está despierta (paso «manada» del modo guiado).
+function ninaDisponible(p){return !!cfg.ninaRemota&&cfg.mode===2&&pasoActual()==='manada'&&!game.nightResolved&&Engine.ninaPuede(game,p.idx);}
 function vistaDe(p){
   const lobo=Engine.isWolf(p);
   const pareja=p.amor?game.assigned.find(o=>o.amor&&o.idx!==p.idx):null;
   const modelo=p.roles.includes('ninoSalvaje')&&!p.lobo?game.assigned.find(o=>o.modelo):null;
   return{idx:p.idx,nombre:p.name,cartas:cardsOf(p),vivo:p.vivo,lobo,
     lobos:lobo?game.assigned.filter(o=>Engine.isWolf(o)&&o.idx!==p.idx).map(o=>o.name):null,
-    amor:pareja?pareja.name:null,modelo:modelo?modelo.name:null};
+    amor:pareja?pareja.name:null,modelo:modelo?modelo.name:null,nina:ninaDisponible(p)};
 }
 function difundir(){
   if(!O.activo||!O.host||!O.partida||!hayJuego())return;
   const w=game.winner;
   const pub={phase:w?'fin':'jugando',noche:game.night,dia:game.day,ganador:w?{em:w.em,t:w.t,d:w.d}:null,
     jug:game.assigned.map(p=>({n:p.name,v:p.vivo?1:0,c:p.vivo?null:p.roles.slice()}))};
-  const priv={};game.assigned.forEach(p=>{if(p.pid)priv[p.pid]=vistaDe(p);});
+  const priv={};game.assigned.forEach(p=>{if(p.pid)(priv[p.pid]=priv[p.pid]||[]).push(vistaDe(p));}); // un móvil puede llevar varios asientos
   const clave=JSON.stringify([pub,priv]);
   if(clave!==O.ultimoSync){
     O.ultimoSync=clave;
     O.T.enviar('todos',{tipo:'estado',...pub}).catch(()=>{});
-    Object.keys(priv).forEach(id=>O.T.enviar(id,{tipo:'rol',v:priv[id]}).catch(()=>{}));
+    Object.keys(priv).forEach(id=>O.T.enviar(id,{tipo:'rol',vs:priv[id]}).catch(()=>{}));
   }
   // el motor se guarda aparte: si el narrador recarga, recupera la partida
   try{O.T.guardarExtra({game:JSON.parse(JSON.stringify(game)),cfg:JSON.parse(JSON.stringify(cfg))});}catch(e){console.warn('guardar:',e&&e.message);}
 }
+
+/* ===== acciones de los jugadores (jugador → narrador): por ahora, la Niña a distancia ===== */
+function hostAccion(m){
+  if(!O.host||!O.partida||!hayJuego())return;
+  const p=game.assigned[m.seat];
+  if(!p||p.pid!==m.de)return; // el remitente verdadero lo pone el transporte: no se puede espiar por otro
+  if(m.paso==='nina'){
+    if(!cfg.ninaRemota||cfg.mode!==2||pasoActual()!=='manada')return;
+    const r=Engine.ninaEspia(game,p.idx);
+    if(!r.ok){O.T.enviar(p.pid,{tipo:'evento',k:'nina',seat:p.idx,error:r.motivo}).catch(()=>{});return;}
+    if(r.vista)game.acts.ninaVista=true; // los lobos la han visto: morirá esta noche (el narrador lo ve marcado y puede corregirlo)
+    O.T.enviar(p.pid,{tipo:'evento',k:'nina',seat:p.idx,lobo:r.lobo,noche:game.night}).catch(()=>{});
+    if(document.getElementById('scr-guided').classList.contains('active'))renderStep();
+    sync(true);
+  }
+}
+function espiar(){const v=O.vista;if(v&&O.T)O.T.enviar('host',{tipo:'accion',paso:'nina',seat:v.idx}).catch(e=>toast(e.message));}
 
 /* ===== pantalla del jugador ===== */
 function route(){
@@ -264,23 +367,37 @@ function route(){
   if(jugando){show('scr-jugador');renderJugador();}
   else{if(document.getElementById('scr-jugador').classList.contains('active'))show('scr-lobby');renderLobby();}
 }
+function pasarMovil(){
+  if(O.vistas.length<2)return;
+  O.seat=(O.seat+1)%O.vistas.length;O.vista=O.vistas[O.seat];O.revelado=false;O.cartasKey='';clearTimeout(O.flipT);
+  renderJugador();
+}
 function renderJugador(){
   if(!O.activo||O.host||!document.getElementById('scr-jugador').classList.contains('active'))return;
-  const v=O.vista,p=O.pub;
-  $('pjTitle').textContent=O.nombre;
+  const v=O.vista=O.vistas[O.seat]||null,p=O.pub,comp=O.vistas.length>1;
+  $('pjTitle').textContent=comp&&v?v.nombre:O.nombre;
   $('pjNight').textContent=p.noche||1;$('pjDay').textContent=p.dia||0;
   const wb=$('pjWin');
   if(p.ganador){$('pjWinEm').textContent=p.ganador.em;$('pjWinT').textContent=p.ganador.t;$('pjWinD').textContent=p.ganador.d;wb.classList.add('show');}else wb.classList.remove('show');
   const est=$('pjEstado');est.innerHTML='';
   if(!v){est.innerHTML='<div class="hint">Esperando tu carta…</div>';}
   else{
+    if(comp)est.appendChild(mk('div','info-box','👥 Móvil compartido: ahora juega <b>'+esc(v.nombre)+'</b>. Toca la carta para verla y, al terminar, pasa el móvil.'));
     est.appendChild(mk('div','',v.vivo?'🟢 <b>Estás vivo</b>':'💀 <b>Has muerto</b>: ya no puedes hablar ni votar, pero puedes mirar.'));
-    if(v.lobo&&v.lobos)est.appendChild(mk('div','info-box bad','🐺 Eres <b>Lobo</b>.'+(v.lobos.length?' Tu manada: <b>'+v.lobos.map(esc).join(', ')+'</b>':' Estás solo en la manada.')));
-    if(v.amor)est.appendChild(mk('div','info-box','💘 Estás enamorado/a de <b>'+esc(v.amor)+'</b>. Si uno muere, el otro muere de pena.'));
-    if(v.modelo)est.appendChild(mk('div','info-box','🎯 Tu Modelo es <b>'+esc(v.modelo)+'</b>. Si muere, te conviertes en Lobo.'));
+    // en un móvil compartido la información privada solo aparece mientras la carta está a la vista
+    if(!comp||O.revelado){
+      if(v.lobo&&v.lobos)est.appendChild(mk('div','info-box bad','🐺 Eres <b>Lobo</b>.'+(v.lobos.length?' Tu manada: <b>'+v.lobos.map(esc).join(', ')+'</b>':' Estás solo en la manada.')));
+      if(v.amor)est.appendChild(mk('div','info-box','💘 Estás enamorado/a de <b>'+esc(v.amor)+'</b>. Si uno muere, el otro muere de pena.'));
+      if(v.modelo)est.appendChild(mk('div','info-box','🎯 Tu Modelo es <b>'+esc(v.modelo)+'</b>. Si muere, te conviertes en Lobo.'));
+      const nv=O.ninaVio&&O.ninaVio.seat===v.idx&&(O.ninaVio.error||O.ninaVio.noche===p.noche)?O.ninaVio:null;
+      if(nv&&nv.lobo)est.appendChild(mk('div','info-box bad','👁 Has espiado: <b>'+esc(nv.lobo)+'</b> es Lobo. Cuidado, pueden haberte visto.'));
+      else if(nv&&nv.error)est.appendChild(mk('div','info-box warn2',esc(nv.error)));
+      if(v.nina){const b=mk('button','btn btn-dark btn-sm','👁 Espiar a los lobos (pueden descubrirte)');b.onclick=espiar;est.appendChild(b);}
+    }
+    if(comp){const sig=O.vistas[(O.seat+1)%O.vistas.length];const b=mk('button','btn btn-primary btn-sm','Pasar el móvil a '+esc(sig.nombre)+' ›');b.onclick=pasarMovil;est.appendChild(b);}
   }
   // cartas: solo se reconstruyen si cambian (para no cortar el giro si llega una actualización)
-  const key=v?JSON.stringify(v.cartas):'';
+  const key=v?JSON.stringify([O.seat,v.cartas]):'';
   if(key!==O.cartasKey){
     O.cartasKey=key;const st=$('pjCards');st.innerHTML='';
     if(v){
@@ -295,7 +412,10 @@ function renderJugador(){
         flip.onclick=()=>{
           const f=!flip.classList.contains('is-flipped');
           document.querySelectorAll('#pjCards .flip').forEach(x=>x.classList.toggle('is-flipped',f));
-          clearTimeout(O.flipT);if(f)O.flipT=setTimeout(()=>document.querySelectorAll('#pjCards .flip').forEach(x=>x.classList.remove('is-flipped')),10000);
+          clearTimeout(O.flipT);
+          const antes=O.revelado;O.revelado=f;
+          if(f)O.flipT=setTimeout(()=>{document.querySelectorAll('#pjCards .flip').forEach(x=>x.classList.remove('is-flipped'));O.revelado=false;renderJugador();},10000);
+          if(antes!==f)renderJugador();
         };
         wrap.appendChild(flip);
       });
@@ -303,10 +423,11 @@ function renderJugador(){
     }
   }
   const lst=$('pjList');lst.innerHTML='';
+  const mias=O.vistas.map(x=>x.idx);
   (p.jug||[]).forEach((j,i)=>{
     const row=mk('div','alg-player');
     row.style.opacity=j.v?1:.55;
-    row.append(mk('div','ap-num',String(i+1)),mk('div','ap-name',esc(j.n)+(v&&v.idx===i?' (tú)':'')),
+    row.append(mk('div','ap-num',String(i+1)),mk('div','ap-name',esc(j.n)+(v&&v.idx===i?' (tú)':(mias.includes(i)?' 📱':''))),
       mk('div','ap-cur',j.v?'':'💀 '+(j.c||[]).map(r=>C[r]?C[r].em+' '+C[r].n:'').join(' · ')));
     lst.appendChild(row);
   });
@@ -319,6 +440,6 @@ function init(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 
-window.Online={activo,esAnfitrion,partidaEnCurso,offline,abrir,volver,conectar,salirConfirm,salir,compartir,qr,ajustes,volverSala,repartir,alLobby,sync,recuperar,_estado:O};
+window.Online={activo,esAnfitrion,partidaEnCurso,offline,abrir,volver,conectar,salirConfirm,salir,compartir,qr,repartir,alLobby,sync,recuperar,_estado:O};
 return window.Online;
 })();

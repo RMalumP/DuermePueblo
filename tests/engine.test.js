@@ -427,3 +427,29 @@ test('ventaja de lobos con tantos lobos como aldeanos',()=>{
   assert.equal(E.ventajaLobos(mk(['lobo','aldeano','aldeano'])),false);
   assert.equal(E.ventajaLobos(mk(['lobo','aldeano'])),true);
 });
+
+/* ===== Niña a distancia ===== */
+test('Niña a distancia: ve a un lobo al azar, una vez por noche',()=>{
+  const g=mk(['nina','lobo','loboAlfa','aldeano','aldeano']);
+  const r=E.ninaEspia(g,0,rngSeq(5));
+  assert.ok(r.ok);assert.ok(['J2','J3'].includes(r.lobo));assert.equal(typeof r.vista,'boolean');
+  assert.equal(E.ninaEspia(g,0,rngSeq(5)).ok,false,'no puede repetir la misma noche');
+  E.startNight(g);
+  assert.ok(E.ninaEspia(g,0,rngSeq(5)).ok,'la noche siguiente sí');
+});
+test('Niña a distancia: el riesgo es de 1 entre 3',()=>{
+  let vistas=0;const N=3000;
+  for(let i=0;i<N;i++){const g=mk(['nina','lobo','aldeano']);if(E.ninaEspia(g,0,rngSeq(i+11)).vista)vistas++;}
+  assert.ok(vistas>N*0.28&&vistas<N*0.38,'vistas='+vistas);
+});
+test('Niña a distancia: no puede si está muerta, es Lobo o no hay lobos',()=>{
+  let g=mk(['nina','lobo','aldeano']);E.kill(g,0,'noche');assert.equal(E.ninaEspia(g,0).ok,false);
+  g=mk(['nina','lobo','aldeano']);g.assigned[0].lobo=true;assert.equal(E.ninaEspia(g,0).ok,false);
+  g=mk(['nina','aldeano','aldeano']);assert.equal(E.ninaEspia(g,0).ok,false);
+  g=mk(['aldeano','lobo','aldeano']);assert.equal(E.ninaEspia(g,0).ok,false);
+});
+test('Niña a distancia: si la descubren (ninaVista) muere en lugar de la víctima',()=>{
+  const g=mk(['nina','lobo','aldeano','aldeano']);
+  const r=R(g,{manada:2,ninaVista:true});
+  assert.ok(!g.assigned[0].vivo&&g.assigned[2].vivo&&r.muertes.length===1);
+});

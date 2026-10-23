@@ -151,6 +151,23 @@ function setInsignia(game,idx){
 function startNight(game){game.night++;game.assigned.forEach(p=>{p.inmune=false;p.preso=false;});}
 function nextCycle(game){if(game.night===1)game.firstNightDone=true;game.day++;startNight(game);}
 
+/* ===== Niña a distancia (opcional, desactivada por defecto) ===== */
+// En la sala la Niña abre los ojos de verdad. Para partidas a distancia: espía desde su móvil, ve a UN lobo al azar y
+// tiene 1 posibilidad entre 3 de ser descubierta (entonces muere esa noche en lugar de la víctima). Una vez por noche.
+const NINA_RIESGO=1/3;
+function ninaPuede(game,idx){
+  const p=game.assigned[idx];
+  return !!p&&p.vivo&&!p.isNar&&p.roles.includes('nina')&&!isWolf(p)&&game.ninaEspioNoche!==game.night&&alivePlayers(game).some(isWolf);
+}
+function ninaEspia(game,idx,rng){
+  rng=rng||Math.random;
+  if(!ninaPuede(game,idx))return{ok:false,motivo:'La Niña no puede espiar ahora.'};
+  game.ninaEspioNoche=game.night;
+  const lobos=alivePlayers(game).filter(isWolf);
+  const visto=lobos[Math.floor(rng()*lobos.length)];
+  return{ok:true,lobo:visto.name,vista:rng()<NINA_RIESGO};
+}
+
 /* ===== Ladrón ===== */
 function ladronPlayer(game){return game.assigned.find(p=>p.roles.includes('ladron')&&!p.isNar)||null;}
 function ladronMustChoose(game){const l=game.ladronCards;return l.length>=2&&l.every(r=>C[r]&&C[r].t==='lobo');}
@@ -422,7 +439,7 @@ function checkWin(game){
 // Aviso para el narrador: con tantos lobos como aldeanos, un empate en la votación acaba dando la victoria a los lobos.
 function ventajaLobos(game){const a=alivePlayers(game);return a.filter(isWolf).length>=a.filter(p=>!isWolf(p)).length;}
 
-const API={WOLF_ROLES,revealList,shuffle,recWolvesFor,mkPlayer,isWolf,alivePlayers,selOpt,selWolf,selVillage,narratorPlan,totalCards,capacity,maxWolves,
+const API={WOLF_ROLES,NINA_RIESGO,ninaPuede,ninaEspia,revealList,shuffle,recWolvesFor,mkPlayer,isWolf,alivePlayers,selOpt,selWolf,selVillage,narratorPlan,totalCards,capacity,maxWolves,
   createGame,kill,revive,resolvePending,setInsignia,startNight,nextCycle,neighbors,holders,actor,alfaDisponible,rojoDisponible,inquisidorObjetivos,jabaliHuele,videnteVe,zorraVe,previewVictims,resolveNight,
   puedeSerVotado,votantes,puedeVotarA,tally,herederaElegible,heredar,lynch,setModelo,setEnamorados,ventajaLobos,
   ladronPlayer,ladronMustChoose,ladronChooseExterno,ladronChooseIntercambio,caretoSwap,checkWin};

@@ -15,7 +15,7 @@
 | 2a | Spike de conectividad (anfitrión + 2-3 móviles: router, hotspot, 4G) | pendiente (necesita móviles reales) |
 | 2b | Transporte PeerJS sin TURN (`js/transport-peer.js`), probado de extremo a extremo con navegadores | ✅ |
 | 2c | Pantallas online: crear/unirse, lobby, QR, diagnóstico de red | ✅ |
-| 3 | Híbrido: carta privada por móvil + narrador guiado | ✅ (móvil compartido: pendiente) |
+| 3 | Híbrido: carta privada por móvil + narrador guiado + móvil compartido | ✅ |
 | 4 | Remoto: acciones nocturnas por móvil, canal de lobos, fases con cronómetro | pendiente |
 | 5 | Día online: votación, chat, interrupciones (Cazador, Heredera, Insignia) | pendiente |
 | 6 | Robustez: snapshot completo del motor, reconexión a mitad de noche | pendiente |
@@ -65,3 +65,14 @@ Puntuación §9 (falta la tabla impresa del libro, que no se lee en el PDF), pas
 - Estrategia de caché: se sirve lo guardado y se actualiza en segundo plano; la versión nueva se ve a la siguiente apertura (aviso en pantalla). **Al cambiar archivos de la app, sube `VERSION` en `sw.js`** y añade a `ARCHIVOS` cualquier archivo nuevo.
 - Durante una partida online se pide que la pantalla no se apague (Wake Lock).
 - `npm run test:pwa`.
+
+## Resultado de la primera prueba con móviles reales
+- **Misma red (wifi, también compartido): funciona bien.**
+- **Anfitrión en wifi y jugador con 4G: no conecta.** Es el límite esperado de usar solo STUN: el NAT del operador móvil (CGNAT) no permite la conexión directa. Lo único que lo arregla de verdad es un servidor de relé (TURN).
+- Hecho: el mensaje de error aconseja usar el mismo wifi; el transporte acepta TURN **opcional y vacío por defecto** (`localStorage 'pueblo.peer.turn'` o `globalThis.PUEBLO_TURN`, lista `[{urls:'turn:…',username,credential}]`; basta con que lo use uno de los dos extremos).
+- Decisión pendiente: añadir o no un TURN. Por ahora la regla es: **todos en la misma red** (wifi o hotspot del narrador).
+
+## Cambios tras esa prueba
+- **Opciones de partida en un desplegable dentro del lobby** (lobos, cartas, modo, Niña a distancia), con resumen en la cabecera. Ya no se abre otra pantalla. El número de jugadores y los nombres salen de la sala.
+- **Móvil compartido** (copiado del modo online de Impostor): el narrador puede añadir hasta 2 invitados por móvil (👥 +1), renombrar, quitar y **ordenar la mesa** (▲▼; el orden importa para vecinos del Jabalí/Zorra y la izquierda de la Rata). Cada móvil alterna sus cartas con «Pasar el móvil a …»; la información privada (lobo, pareja, Modelo) solo se ve con la carta destapada. Solo en el modo híbrido (cartas), no en el de acciones individuales de la fase 4.
+- **Niña a distancia** (opcional, **desactivada por defecto**; el juego está pensado para jugar en una sala, donde la Niña abre los ojos de verdad): solo en online + modo guiado y solo durante el paso «La manada». La Niña espía desde su móvil, ve a un lobo al azar y tiene 1/3 de probabilidad de ser descubierta (entonces muere en lugar de la víctima). Una vez por noche. Es la primera acción de jugador → narrador (mensaje `accion` con el remitente verificado).

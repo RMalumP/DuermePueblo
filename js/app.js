@@ -5,7 +5,7 @@ const BACK="https://images.steamusercontent.com/ugc/2274945577069468636/192A59DB
 const LOGO=IMG+"baralho36.png";
 
 
-let cfg={players:8,wolves:2,narrator:"random",narratorEnabled:true,names:[],optional:{},mode:1,insigniaMode:"random",ladronMode:"externo"};
+let cfg={players:8,wolves:2,narrator:"random",narratorEnabled:true,names:[],optional:{},mode:1,insigniaMode:"random",ladronMode:"externo",ninaRemota:false};
 OPTIONAL.forEach(([k,on])=>cfg.optional[k]=on);
 
 let game={assigned:[],deck:[],revealList:[],ladronCards:[],ladronChosen:false,caretoUsed:false,
@@ -24,7 +24,7 @@ function changePlayers(d){
   syncWolfWarn();renderNarratorOptions();renderNames();renderRoles();checkRoleCapacity();
 }
 function clampWolves(){cfg.wolves=Math.max(1,Math.min(Engine.maxWolves(cfg),cfg.wolves));document.getElementById('numWolves').textContent=cfg.wolves;}
-function changeWolves(d){cfg.wolves+=d;clampWolves();syncWolfWarn();checkRoleCapacity();}
+function changeWolves(d){cfg.lobosManual=true;cfg.wolves+=d;clampWolves();syncWolfWarn();checkRoleCapacity();}
 function syncWolfWarn(){
   const rec=recWolvesFor(cfg.players),w=document.getElementById('wolfWarn');
   if(cfg.wolves!==rec){w.style.display='flex';w.querySelector('span:last-child').textContent=`No recomendado: lo habitual para ${cfg.players} jugadores son ${rec} lobos.`;}
@@ -103,6 +103,11 @@ function checkRoleCapacity(){
   if(!cap.ok){w.style.display='flex';w.querySelector('span:last-child').textContent=cap.msg;return false;}
   w.style.display='none';return true;
 }
+function toggleNinaRemota(){
+  cfg.ninaRemota=!cfg.ninaRemota;
+  const b=document.getElementById('btnNinaRemota');b.classList.toggle('on',cfg.ninaRemota);
+  b.textContent='👧 Niña a distancia · '+(cfg.ninaRemota?'ACTIVADO':'desactivado');
+}
 function pickMode(m){cfg.mode=m;document.getElementById('mode1').classList.toggle('on',m===1);document.getElementById('mode2').classList.toggle('on',m===2);}
 function toggleCollap(id){document.getElementById(id).classList.toggle('open');}
 
@@ -118,10 +123,10 @@ function showAlguacilBtns(){
   });
 }
 // Partida online: el anfitrión es el narrador (no juega) y cada jugador ve su carta en su propio móvil, así que no hay reparto pasando el teléfono.
-function startOnlineGame(pids){
+function startOnlineGame(pids,seatIds){
   if(!checkRoleCapacity()){document.getElementById('rolesCollap').classList.add('open');return false;}
   game=newGameState();
-  game.assigned.forEach((p,i)=>{p.pid=pids[i]||null;});
+  game.assigned.forEach((p,i)=>{p.pid=pids[i]||null;p.seat=(seatIds&&seatIds[i])||p.pid;});
   game.revealList=[];game.online=true;
   showAlguacilBtns();hideWinBanner();
   goToGame();
@@ -653,6 +658,7 @@ function renderActionUI(s,ex){
       infoBox(ex,`🐀 Lobo infectado por la Rata: <b>${nm(game.infected)}</b>. Tócale la cabeza antes de despertar a la manada: esta noche no participa y morirá.`,'bad');
     pickerUI(ex,{label:'Víctima de la manada (déjalo vacío si no se deciden)',key:'manada',filter:notWolf});
     if(Engine.alfaDisponible(game))toggleBtn(ex,'👑 El Alfa maldice a la víctima (no muere)','alfaCurse');
+    if(game.ninaEspioNoche===game.night)infoBox(ex,'👧 La Niña ha espiado desde su móvil esta noche.'+(game.acts.ninaVista?' <b>Los lobos la han visto</b>: morirá en lugar de la víctima.':' No la han descubierto.'),game.acts.ninaVista?'bad':'');
     if(inPlay('nina')&&Engine.actor(game,'nina'))toggleBtn(ex,'👧 Los lobos han visto a la Niña (muere ella)','ninaVista');
   }else if(a==='alfa'){
     if(game.acts.alfaCurse&&game.acts.manada!==null&&game.acts.manada!==undefined&&Engine.alfaDisponible(game))
