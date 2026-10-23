@@ -110,7 +110,8 @@ function crear(o){
     }
     if(acc==='debate'){F.anunciar(g,'💬 Empieza el debate');await esperar(0,t.debate*1000,()=>false,'debate');return;}
     if(acc==='votacion'){await votacion();return;}
-    // alfa, médium, jabalí… no necesitan a nadie
+    if(acc==='medium'){F.infoMedium(g);return;}
+    // alfa, jabalí… no necesitan a nadie
   }
   async function bucle(){
     const g=G();

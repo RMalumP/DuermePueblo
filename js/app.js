@@ -1025,3 +1025,15 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
   navigator.serviceWorker.addEventListener('controllerchange',()=>{if(teniaControl)toast('Nueva versión descargada: se verá al volver a abrir la app');});
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw:',e&&e.message)));
 }
+
+
+/* ===== ACCESIBILIDAD: los elementos que se pulsan con el dedo también se manejan con teclado y lectores de pantalla ===== */
+(function accesibilidad(){
+  const SEL='.pm,.role-chk,.mode-card,.alg-player,.sa,.lad-card,.imode-btn';
+  const marcar=n=>{if(n.nodeType!==1)return;(n.matches&&n.matches(SEL)?[n]:[]).concat([...n.querySelectorAll?n.querySelectorAll(SEL):[]]).forEach(e=>{if(!e.hasAttribute('tabindex')&&e.tagName!=='BUTTON'){e.setAttribute('tabindex','0');e.setAttribute('role','button');}});};
+  marcar(document.body);
+  new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(marcar))).observe(document.body,{childList:true,subtree:true});
+  document.addEventListener('keydown',e=>{
+    if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches(SEL)&&e.target.getAttribute('role')==='button'){e.preventDefault();e.target.click();}
+  });
+})();

@@ -156,3 +156,10 @@ test('anuncios: se acumulan con un límite',()=>{
   for(let i=0;i<70;i++)F.anunciar(g,'a'+i);
   assert.equal(g.anuncios.length,60);assert.equal(g.anuncios[59].t,'a69');
 });
+
+test('Médium: recibe el nombre del último linchado',()=>{
+  const g=mk(['medium','aldeano','lobo']);
+  F.infoMedium(g);assert.equal(g.res,undefined);
+  E.lynch(g,1);E.nextCycle(g);F.infoMedium(g);
+  assert.ok(g.res[0].t.includes('J2'));
+});

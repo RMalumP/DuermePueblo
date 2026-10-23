@@ -354,6 +354,7 @@ function paso(){
   game.prompts={};game.accionAbierta=null;game.preguntados=[];
   if(FLOW_ACC.includes(st.action))game.preguntados=Flow.abrir(game,cfg,st.action);
   else if(st.action==='votacion'){game.vote=null;game.preguntados=Flow.abrirVoto(game,cfg);}
+  else if(st.action==='medium')Flow.infoMedium(game);
   if(game.pending&&game.pending.length)Flow.abrirPendientes(game);
   sync(true);
 }
@@ -390,6 +391,7 @@ function vistaDe(p){
     amor:pareja?pareja.name:null,modelo:modelo?modelo.name:null,nina:ninaDisponible(p),
     prompt:(game.prompts&&game.prompts[p.idx])||null,
     chatLobos:lobo?(game.chatLobos||[]).slice(-30):null,preso:!!p.preso,
+    infectado:(lobo&&game.infected!==null&&game.infected!==undefined&&game.assigned[game.infected])?game.assigned[game.infected].name:null,
     res:(game.res&&game.res[p.idx]&&game.res[p.idx].noche===game.night)?game.res[p.idx].t:null,
     robado:!!p.robado};
 }
@@ -398,6 +400,7 @@ function difundir(){
   const w=game.winner;
   const pts=w?Engine.puntuar(game,w).sort((x,y)=>y.total-x.total).map(r=>({n:r.name,t:r.total,d:[r.equipo&&'equipo '+r.equipo,r.superv&&'superv. '+r.superv,r.poder&&'poder '+r.poder,r.pareja&&'pareja '+r.pareja].filter(Boolean).join(' · ')})):null;
   const pub={phase:w?'fin':'jugando',noche:game.night,dia:game.day,ganador:w?{em:w.em,t:w.t,d:w.d}:null,puntos:pts,anuncios:(game.anuncios||[]).slice(-12),mov:!!cfg.accionesMovil,momento:esNoche()?'noche':'dia',chat:(game.chatDia||[]).slice(-30),
+    off:game.assigned.filter(x=>x.pid&&offline(x.pid)).map(x=>x.name),
     auto:game.auto&&game.auto.paso?{em:game.auto.paso.em,t:game.auto.paso.t,rest:Math.max(0,Math.round((game.auto.rest||0)/1000)),pausa:!!game.auto.pausa,et:game.auto.et||''}:null,
     jug:game.assigned.map(p=>({n:p.name,v:p.vivo?1:0,c:p.vivo?null:p.roles.slice()}))};
   const priv={};game.assigned.forEach(p=>{if(p.pid)(priv[p.pid]=priv[p.pid]||[]).push(vistaDe(p));}); // un móvil puede llevar varios asientos
@@ -535,7 +538,7 @@ function renderJugador(){
   $('pjTitle').textContent=comp&&v?v.nombre:O.nombre;
   $('pjMod').style.display=O.host&&O.auto?'':'none';
   const fz=$('pjFase'),au=p.auto;
-  if(au&&p.phase==='jugando'){fz.style.display='block';fz.innerHTML=(au.pausa?'⏸ <b>En pausa</b> · ':'')+esc(au.em+' '+au.t)+(au.et&&au.et!==au.t?' · '+esc(au.et):'')+(au.rest?' · <b>'+au.rest+' s</b>':'');}else fz.style.display='none';
+  if(au&&p.phase==='jugando'){fz.style.display='block';fz.innerHTML=(au.pausa?'⏸ <b>En pausa</b> · ':'')+esc(au.em+' '+au.t)+(au.et&&au.et!==au.t?' · '+esc(au.et):'')+(au.rest?' · <b>'+au.rest+' s</b>':'')+((p.off&&p.off.length)?'<br>📴 Sin conexión: '+p.off.map(esc).join(', '):'');}else fz.style.display='none';
   $('pjNight').textContent=p.noche||1;$('pjDay').textContent=p.dia||0;
   const wb=$('pjWin');
   if(p.ganador){$('pjWinEm').textContent=p.ganador.em;$('pjWinT').textContent=p.ganador.t;$('pjWinD').textContent=p.ganador.d;wb.classList.add('show');}else wb.classList.remove('show');
@@ -553,6 +556,7 @@ function renderJugador(){
     if(!comp||O.revelado){
       if(v.res)est.appendChild(mk('div','info-box ok','🔒 '+esc(v.res)));
       if(v.robado)est.appendChild(mk('div','info-box bad','💰 El Ladrón te ha robado la carta: ahora eres Aldeano.'));
+      if(v.infectado)est.appendChild(mk('div','info-box bad','🐀 <b>'+esc(v.infectado)+'</b> está infectado por la Rata: esta noche no participa y morirá.'));
       if(v.lobo&&v.lobos)est.appendChild(mk('div','info-box bad','🐺 Eres <b>Lobo</b>.'+(v.lobos.length?' Tu manada: <b>'+v.lobos.map(esc).join(', ')+'</b>':' Estás solo en la manada.')));
       if(v.amor)est.appendChild(mk('div','info-box','💘 Estás enamorado/a de <b>'+esc(v.amor)+'</b>. Si uno muere, el otro muere de pena.'));
       if(v.modelo)est.appendChild(mk('div','info-box','🎯 Tu Modelo es <b>'+esc(v.modelo)+'</b>. Si muere, te conviertes en Lobo.'));

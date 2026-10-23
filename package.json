@@ -11,7 +11,9 @@
     "test:persistencia": "node tests/ui-persistencia.js",
     "test:puntos": "node tests/ui-puntos.js",
     "test:moviles": "node tests/ui-moviles.js",
-    "test:auto": "node tests/ui-automatico.js"
+    "test:auto": "node tests/ui-automatico.js",
+    "test:reconexion": "node tests/ui-reconexion.js",
+    "test:all": "npm test && npm run test:ui && npm run test:pwa && npm run test:persistencia && npm run test:net && npm run test:online && npm run test:moviles && npm run test:auto && npm run test:reconexion"
   },
   "devDependencies": {
     "peer": "1.0.2",

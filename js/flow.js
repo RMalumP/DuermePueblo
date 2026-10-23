@@ -289,8 +289,14 @@ function abrirPendientes(game){
   });
   return seats;
 }
+// El Médium recibe el nombre del último linchado (desde la 2ª noche); la letra la «dibuja» el muerto en la sala, no aquí.
+function infoMedium(game){
+  const m=E.actor(game,'medium'),l=game.lastLynched;
+  if(!m||l===null||l===undefined||!game.assigned[l])return;
+  textoRes(game,m.idx,'👻 El alma de '+game.assigned[l].name+' (linchado ayer) te habla desde el más allá.');
+}
 function anunciar(game,txt){if(!game.anuncios)game.anuncios=[];game.anuncios.push({n:game.night,d:game.day,t:txt});if(game.anuncios.length>60)game.anuncios.shift();}
 
-return{pasos,inPlay,construir,abrir,cerrar,pendientes,validar,responder,recontarManada,abrirVoto,contarVotos,abrirDesempate,abrirHeredera,abrirPendientes,anunciar};
+return{infoMedium,pasos,inPlay,construir,abrir,cerrar,pendientes,validar,responder,recontarManada,abrirVoto,contarVotos,abrirDesempate,abrirHeredera,abrirPendientes,anunciar};
 })();
 if(typeof module!=='undefined')module.exports=Flow;

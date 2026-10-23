@@ -16,6 +16,8 @@
 <style>
 :root{--navy:#2a3f5c;--navy-d:#1d2d44;--navy-dd:#15212f;--copper:#b8743f;--copper-l:#d39767;--cream:#f2e9d8;--cream-d:#d8cbb2;--muted:#8ba0b8;--red:#9e3b35;--green:#4f7a52;--gold:#c9a14a;--disp:'Oswald','Arial Narrow',Impact,sans-serif;--body:'Spectral',Georgia,'Times New Roman',serif;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+button:focus-visible,input:focus-visible,select:focus-visible,.pm:focus-visible,.role-chk:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 html,body{margin:0;padding:0;}
 body{font-family:var(--body);background:var(--navy-dd);color:var(--cream);min-height:100vh;background-image:radial-gradient(circle at 50% 0%,rgba(184,116,63,.10),transparent 60%),radial-gradient(circle at 50% 100%,rgba(184,116,63,.08),transparent 55%);overscroll-behavior:none;}
 .app{max-width:520px;margin:0 auto;min-height:100vh;}
@@ -444,17 +446,17 @@ select:disabled{opacity:.4;}
   <div class="topbar">
     <button class="iconbtn" onclick="Online.salirConfirm()">‹ Salir</button>
     <div class="title" id="pjTitle"></div>
-    <button class="iconbtn" id="pjMod" style="display:none" onclick="Online.modAbrir()">⚙️</button>
+    <button class="iconbtn" id="pjMod" aria-label="Moderación de la partida" style="display:none" onclick="Online.modAbrir()">⚙️</button>
     <button class="iconbtn" onclick="openRules()">Reglas</button>
   </div>
-  <div class="info-box" id="pjFase" style="display:none;text-align:center"></div>
+  <div class="info-box" id="pjFase" role="status" aria-live="polite" style="display:none;text-align:center"></div>
   <div class="win-banner" id="pjWin"><span class="wb-em" id="pjWinEm"></span><div class="wb-t" id="pjWinT"></div><div class="wb-d" id="pjWinD" style="white-space:pre-line"></div></div>
-  <div class="card-panel" id="pjAccion" style="display:none"></div>
+  <div class="card-panel" id="pjAccion" role="region" aria-live="assertive" aria-label="Te toca decidir" style="display:none"></div>
   <div class="card-panel" id="pjChat" style="display:none">
     <h2 class="section">Chat</h2>
     <div id="pjChatTabs" style="display:flex;gap:6px;margin-bottom:8px"></div>
-    <div id="pjChatLog" style="max-height:220px;overflow:auto;font-size:13.5px;line-height:1.45"></div>
-    <div style="display:flex;gap:6px;margin-top:8px"><input id="pjChatIn" maxlength="200" autocomplete="off" style="flex:1;background:var(--navy-dd);border:1px solid rgba(184,116,63,.25);border-radius:8px;color:var(--cream);font-family:var(--body);font-size:15px;padding:9px 11px"><button class="iconbtn" id="pjChatSend">Enviar</button></div>
+    <div id="pjChatLog" role="log" aria-live="polite" aria-label="Mensajes del chat" style="max-height:220px;overflow:auto;font-size:13.5px;line-height:1.45"></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><input id="pjChatIn" aria-label="Mensaje del chat" maxlength="200" autocomplete="off" style="flex:1;background:var(--navy-dd);border:1px solid rgba(184,116,63,.25);border-radius:8px;color:var(--cream);font-family:var(--body);font-size:15px;padding:9px 11px"><button class="iconbtn" id="pjChatSend">Enviar</button></div>
   </div>
   <div class="card-panel" id="pjPuntos" style="display:none"></div>
   <div class="cycle-box">
@@ -463,7 +465,7 @@ select:disabled{opacity:.4;}
   </div>
   <div class="card-panel" id="pjEstado"></div>
   <div class="reveal-wrap"><div class="flip-stage" id="pjCards"></div><div class="hint">Toca la carta para verla u ocultarla (se oculta sola a los 10 s)</div></div>
-  <div class="card-panel" id="pjAnuncios" style="margin-top:16px"></div>
+  <div class="card-panel" id="pjAnuncios" role="log" aria-live="polite" aria-label="Anuncios de la partida" style="margin-top:16px"></div>
   <div class="card-panel" style="margin-top:16px"><h2 class="section">Jugadores</h2><div id="pjList"></div></div>
 </section>
 </div>
@@ -592,7 +594,7 @@ select:disabled{opacity:.4;}
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="js/data.js"></script>
 <script src="js/engine.js"></script>
