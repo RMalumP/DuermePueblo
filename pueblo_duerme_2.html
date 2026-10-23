@@ -198,6 +198,15 @@ select:disabled{opacity:.4;}
 .win-modal-msg .wmd{font-size:14px;line-height:1.6;color:var(--cream-d);}
 .win-in-progress{text-align:center;padding:20px 0;color:var(--muted);font-family:var(--disp);text-transform:uppercase;letter-spacing:.08em;}
 .foot{text-align:center;font-size:11px;color:var(--muted);letter-spacing:.1em;font-family:var(--disp);text-transform:uppercase;margin-top:6px;}
+.info-box{background:rgba(184,116,63,.12);border:1px solid rgba(184,116,63,.3);border-radius:10px;padding:10px 12px;font-size:13.5px;color:var(--cream-d);margin-bottom:10px;line-height:1.5}
+.info-box.ok{border-color:var(--green);background:rgba(79,122,82,.15)}.info-box.bad{border-color:var(--red);background:rgba(158,59,53,.15)}
+.info-box.warn2{border-color:var(--gold);color:var(--gold)}
+.pk-label{font-family:var(--disp);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--copper-l);margin:10px 0 6px}
+.btn-toggle.on{background:rgba(79,122,82,.3);border-color:var(--green)}
+.vote-row{display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--navy-dd);border:1px solid rgba(184,116,63,.2);border-radius:10px;margin-bottom:8px}
+.vote-row.blocked{opacity:.45}.vote-row .vn{flex:1;font-size:15px}.vote-row .vc{font-family:var(--disp);font-size:20px;min-width:26px;text-align:center}
+.vote-row .rnd{width:38px;height:38px;font-size:20px}
+.vote-res{font-size:13px;color:var(--cream-d);line-height:1.6;margin:10px 0}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--copper);color:var(--navy-dd);padding:10px 18px;border-radius:30px;font-family:var(--disp);text-transform:uppercase;font-size:12px;letter-spacing:.06em;z-index:90;opacity:0;transition:.3s;pointer-events:none;max-width:90%;text-align:center;}
 .toast.show{opacity:1;}
 </style>
@@ -296,6 +305,7 @@ select:disabled{opacity:.4;}
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
     <button class="iconbtn" onclick="cycleStep('night')">🌙 +Noche</button>
     <button class="iconbtn" onclick="cycleStep('day')">☀️ +Día</button>
+    <button class="iconbtn" onclick="showVoteModal()">🗳️ Votación</button>
     <button class="iconbtn" onclick="openResults('scr-game')">🗝️ Resultados</button>
     <button class="iconbtn" id="alguacilBtn1" style="display:none" onclick="showAlguacilModal()">👮 Alguacil</button>
     <button class="iconbtn" onclick="showFinModal()" style="background:rgba(158,59,53,.3);border-color:var(--red);">🏁 Fin</button>
@@ -422,6 +432,15 @@ select:disabled{opacity:.4;}
     <p id="alguacilTxt" style="font-size:14px;color:var(--cream-d)"></p>
     <div id="alguacilList"></div>
     <button class="btn btn-ghost btn-sm" onclick="closeAlguacilModal()">Saltar por ahora</button>
+  </div>
+</div>
+
+ <!-- VOTE MODAL -->
+<div class="modal-bg" id="voteModal">
+  <div class="modal">
+    <button class="close-x" onclick="closeVoteModal()">×</button>
+    <div class="brand" style="padding-top:6px"><h1 style="font-size:20px">🗳️ Votación</h1></div>
+    <div id="voteBody"></div>
   </div>
 </div>
 
@@ -573,7 +592,7 @@ function toggleCollap(id){document.getElementById(id).classList.toggle('open');}
 function startGame(){
   if(!checkRoleCapacity()){document.getElementById('rolesCollap').classList.add('open');return;}
   game=Object.assign(Engine.createGame(cfg),{
-    sheetTarget:null,resultsFrom:'scr-game',caretoSel:[],ladronCallback:null,ladronModalShown:false,steps:[],stepIdx:0,
+    sheetTarget:null,resultsFrom:'scr-game',caretoSel:[],ladronCallback:null,ladronModalShown:false,steps:[],stepIdx:0,acts:{},nightResolved:false,nightRep:null,vote:null,caretoUsedNight:null,
     reveal:{idx:0,flipped:false,seen:0,allSeen:false,busy:false}});
   game.revealList=Engine.revealList(game);
   ['alguacilBtn1','alguacilBtn2'].forEach(id=>{
@@ -754,11 +773,12 @@ function showCaretoModal(){
 }
 function confirmCaretoSwap(){
   if(game.caretoSel.length!==2)return;
-  const ev=Engine.caretoSwap(game,game.caretoSel[0],game.caretoSel[1]);
+  game.acts.careto=game.caretoSel.slice();
   document.getElementById('caretoModal').classList.remove('open');
-  afterAct();if(ev.length)toast(ev[0]);
+  toast(`🎭 Careto: ${game.assigned[game.acts.careto[0]].name} ↔ ${game.assigned[game.acts.careto[1]].name} (se aplica al despertar)`);
+  renderStep();
 }
-function skipCareto(){game.caretoUsed=true;document.getElementById('caretoModal').classList.remove('open');toast('Careto: sin intercambio');}
+function skipCareto(){game.acts.careto=null;document.getElementById('caretoModal').classList.remove('open');toast('Careto: sin intercambio esta noche');renderStep();}
 function closeCaretoModal(){document.getElementById('caretoModal').classList.remove('open');}
 
 /* ===== CAZADOR MODAL ===== */
@@ -930,26 +950,26 @@ function currentStepList(){
     if(inPlay('ladron')&&cfg.ladronMode==='intercambio'&&game.ladronChosen&&game.ladronStolenCard){
       p(null,"👁","Mostrar carta al jugador robado","Pasa el teléfono al jugador afectado para que vea que ahora es Aldeano.","ladron_robado");
     }
-    p("ninoSalvaje","🧒","Niño Salvaje","El Niño Salvaje levanta la mano y señala a su Modelo.","modelo");
+    p("ninoSalvaje","🧒","Niño Salvaje","El Niño Salvaje despierta y señala a su Modelo (solo el narrador y el Niño lo saben).","modelo");
     p("jabali","🐗","Jabalí","El Jabalí levanta la mano. Anota su posición (no abre los ojos).",null);
     p("nina","👧","Niña","La Niña levanta la mano para que la reconozcas.",null);
-    p("cupido","💘","Cupido","El Cupido señala a los dos enamorados.","amor");
+    p("cupido","💘","Cupido","El Cupido señala a los dos enamorados. Toca la cabeza de cada uno.","amor");
     p("apaixonados","❤️","Los enamorados","Los enamorados se reconocen entre sí.",null);
   }
-  add(null,"🐺","La manada","La manada despierta y elige víctima.",null);
-  add("loboAlfa","👑","Víctima del Alfa","Si el Alfa dio señal, toca al jugador maldito.","lobo");
-  add("loboRojo","🔴","Lobo Rojo","El Lobo Rojo hace otra víctima si ningún lobo ha muerto.","muerto");
-  add("loboJudas","🗡️","Lobo Judas","El Lobo Judas puede matar a un lobo.","muerto");
-  add("bruja","🧙‍♀️","Bruja","La Bruja puede curar o envenenar.",null);
-  add("vidente","🔮","Vidente","La Vidente señala a un jugador; indícale si es lobo o aldeano.",null);
-  add("zorra","🦊","Zorra","La Zorra señala un trío; di si hay algún lobo.",null);
-  add("policia","👮","Policía","El Policía puede detener y/o dar inmunidad.","preso");
-  add("inquisidor","⚖️","Inquisidor","El Inquisidor puede acusar a varios sospechosos.",null);
-  if(inPlay('careto')&&!game.caretoUsed)add("careto","🎭","Careto","El Careto puede intercambiar dos cartas.","careto");
-  if(game.night>=2)add("medium","👻","Médium","El alma del último muerto da una letra al Médium.",null);
-  add(null,"☀️","El pueblo despierta","Anuncia las muertes de la noche. Marca a los muertos.","muerto");
-  add(null,"💬","Debate","La aldea discute y busca a los lobos.",null);
-  add(null,"🗳️","Votación","La aldea vota. Marca al jugador linchado.","muerto");
+  add(null,"🐺","La manada","La manada despierta y elige víctima. Si no se deciden, nadie muere.",'manada');
+  add("loboAlfa","👑","Víctima del Alfa","Tras dormirse la manada, el Alfa puede levantar la mano para maldecir a la víctima.",'alfa');
+  add("loboRojo","🔴","Lobo Rojo","El Lobo Rojo despierta solo y elige otra víctima (si no ha muerto ningún lobo).",'rojo');
+  add("loboJudas","🗡️","Lobo Judas","El Lobo Judas despierta solo y puede eliminar a un lobo.",'judas');
+  add("bruja","🧙‍♀️","Bruja","Enséñale solo a quien ha sido devorado: pulgar arriba = curar, pulgar abajo = envenenar.",'bruja');
+  add("vidente","🔮","Vidente","La Vidente señala a un jugador. Pulgar arriba si es lobo, abajo si es aldeano.",'vidente');
+  add("zorra","🦊","Zorra","La Zorra señala el centro de un trío de vecinos. Pulgar arriba si hay algún lobo.",'zorra');
+  add("policia","👮","Policía","El Policía puede arrestar (pulgar abajo) y/o dar inmunidad (pulgar arriba). Una vez cada poder.",'policia');
+  add("inquisidor","⚖️","Inquisidor","El Inquisidor puede acusar a sus sospechosos (una sola vez en la partida).",'inquisidor');
+  if(inPlay('careto')&&(!game.caretoUsed||game.caretoUsedNight===game.night))add("careto","🎭","Careto","El Careto puede intercambiar dos cartas (una sola vez).","careto");
+  if(game.night>=2)add("medium","👻","Médium","El alma del último linchado le dibuja una letra en el aire.",'medium');
+  add(null,"☀️","El pueblo despierta","Resuelve la noche y anuncia las muertes sin explicar nunca cómo ni por qué.",'despierta');
+  add(null,"💬","Debate","La aldea discute y busca a los lobos.",'debate');
+  add(null,"🗳️","Votación","La aldea vota. La Insignia vale por dos y decide los empates.",'votacion');
   add(null,"🌙","El pueblo se duerme","Nueva noche; empieza un nuevo turno normal.",null);
   return list;
 }
@@ -960,8 +980,7 @@ function renderStep(){
   const s=game.steps[game.stepIdx];
   document.getElementById('stPhase').textContent=s.phase==='prelim'?'Turno preliminar · 1ª noche':`Turno normal · Noche ${game.night} / Día ${game.day}`;
   document.getElementById('stEmoji').textContent=s.em;document.getElementById('stTitle').textContent=s.title;
-  let txt=s.text;if(s.action&&!['ladron','careto'].includes(s.action))txt+=' <b style="color:var(--copper-l)">(toca un jugador para marcar)</b>';
-  document.getElementById('stText').innerHTML=txt;
+  document.getElementById('stText').textContent=s.text;
   document.getElementById('stCount').textContent=`Paso ${game.stepIdx+1} de ${game.steps.length}`;
   document.getElementById('g2Night').textContent=game.night;document.getElementById('g2Day').textContent=game.day;
   const ex=document.getElementById('extraStepUI');ex.innerHTML='';
@@ -1010,11 +1029,12 @@ function renderStep(){
     const btn=document.createElement('button');btn.className='btn btn-primary btn-sm';btn.style.marginTop='0';
     btn.textContent='🎭 Registrar intercambio de cartas';btn.onclick=showCaretoModal;ex.appendChild(btn);
   }
+  renderActionUI(s,ex);
   updateLadronRobadoBtn();
 }
 function nextStep(){
   if(game.stepIdx>=game.steps.length-1){
-    Engine.nextCycle(game);game.stepIdx=0;renderStep();renderPlayersMini();toast('Noche '+game.night);return;
+    Engine.nextCycle(game);game.stepIdx=0;game.acts={};game.nightResolved=false;game.nightRep=null;renderStep();renderPlayersMini();toast('Noche '+game.night);return;
   }
   game.stepIdx++;renderStep();renderPlayersMini();
 }
@@ -1037,6 +1057,200 @@ function renderMiniInto(boxId){
     div.innerHTML=`<div class="pmn"><span class="pe">${i+1}</span>${esc(p.name)}</div><div class="pmtags">${tags}</div>`;
     div.onclick=()=>openSheet(i);box.appendChild(div);
   });
+}
+
+
+/* ===== ACCIONES DE LA NOCHE (modo guiado) ===== */
+const ACTOR_DE={alfa:'loboAlfa',rojo:'loboRojo',judas:'loboJudas',bruja:'bruja',vidente:'vidente',zorra:'zorra',policia:'policia',inquisidor:'inquisidor',careto:'careto',medium:'medium',modelo:'ninoSalvaje',amor:'cupido'};
+function infoBox(ex,html,cls){const d=document.createElement('div');d.className='info-box'+(cls?' '+cls:'');d.innerHTML=html;ex.appendChild(d);return d;}
+function toggleBtn(ex,text,key,onChange){
+  const b=document.createElement('button');b.className='btn-toggle'+(game.acts[key]?' on':'');b.textContent=text+(game.acts[key]?' ✓':'');
+  b.onclick=()=>{game.acts[key]=!game.acts[key];if(onChange)onChange();renderStep();};
+  ex.appendChild(b);
+}
+// Selector de objetivos: guarda el índice (o la lista, si multi) en game.acts[key].
+function pickerUI(ex,o){
+  const wrap=document.createElement('div');
+  const lab=document.createElement('div');lab.className='pk-label';lab.textContent=o.label;wrap.appendChild(lab);
+  const grid=document.createElement('div');grid.className='players-mini';wrap.appendChild(grid);
+  const draw=()=>{
+    grid.innerHTML='';const cur=game.acts[o.key];
+    game.assigned.filter(p=>!p.isNar&&p.vivo&&(!o.filter||o.filter(p))).forEach(p=>{
+      const sel=o.multi?(cur||[]).includes(p.idx):cur===p.idx;
+      const d=document.createElement('div');d.className='pm'+(sel?' sel2':'');
+      d.innerHTML=`<div class="pmn"><span class="pe">${p.idx+1}</span>${esc(p.name)}</div>`;
+      d.onclick=()=>{
+        if(o.multi){const a=(cur||[]).slice(),i=a.indexOf(p.idx);if(i>=0)a.splice(i,1);else if(a.length<o.multi)a.push(p.idx);game.acts[o.key]=a;}
+        else game.acts[o.key]=(cur===p.idx)?null:p.idx;
+        if(o.onChange)o.onChange(game.acts[o.key]);
+        renderStep();
+      };
+      grid.appendChild(d);
+    });
+  };
+  draw();ex.appendChild(wrap);
+}
+function nm(i){return i===null||i===undefined||!game.assigned[i]?'—':esc(game.assigned[i].name);}
+function renderActionUI(s,ex){
+  const a=s.action;if(!a)return;
+  const role=ACTOR_DE[a];
+  if(role&&a!=='modelo'&&a!=='amor'&&!Engine.actor(game,role)){
+    infoBox(ex,'Este personaje no está vivo: haz como si lo despertaras, sin que decida nada.','warn2');return;
+  }
+  const notWolf=p=>!Engine.isWolf(p);
+  if(a==='modelo'){
+    const nino=Engine.actor(game,'ninoSalvaje');if(!nino)return;
+    if(game.acts.modelo===undefined){const m=game.assigned.find(p=>p.modelo);game.acts.modelo=m?m.idx:null;}
+    pickerUI(ex,{label:'Modelo del Niño Salvaje',key:'modelo',filter:p=>p.idx!==nino.idx,onChange:v=>{Engine.setModelo(game,nino.idx,v===null?-1:v);refreshGameUI();}});
+  }else if(a==='amor'){
+    if(game.acts.amor===undefined)game.acts.amor=game.assigned.filter(p=>p.amor).map(p=>p.idx);
+    pickerUI(ex,{label:'Los dos enamorados (pueden ser Cupido o lobos)',key:'amor',multi:2,onChange:v=>{
+      if(v.length===2)Engine.setEnamorados(game,v[0],v[1]);else game.assigned.forEach(p=>{p.amor=false;});refreshGameUI();}});
+    infoBox(ex,'Se reconocen entre sí sin enseñar su carta.');
+  }else if(a==='manada'){
+    if(game.infected!==null&&game.infected!==undefined)
+      infoBox(ex,`🐀 Lobo infectado por la Rata: <b>${nm(game.infected)}</b>. Tócale la cabeza antes de despertar a la manada: esta noche no participa y morirá.`,'bad');
+    pickerUI(ex,{label:'Víctima de la manada (déjalo vacío si no se deciden)',key:'manada',filter:notWolf});
+    if(Engine.alfaDisponible(game))toggleBtn(ex,'👑 El Alfa maldice a la víctima (no muere)','alfaCurse');
+    if(inPlay('nina')&&Engine.actor(game,'nina'))toggleBtn(ex,'👧 Los lobos han visto a la Niña (muere ella)','ninaVista');
+  }else if(a==='alfa'){
+    if(game.acts.alfaCurse&&game.acts.manada!==null&&game.acts.manada!==undefined&&Engine.alfaDisponible(game))
+      infoBox(ex,`Toca la cabeza de <b>${nm(game.acts.manada)}</b>: no muere; desde ahora es Lobo en secreto.`,'ok');
+    else infoBox(ex,'El Alfa no maldice esta noche: la víctima de la manada es devorada.');
+  }else if(a==='rojo'){
+    if(!Engine.rojoDisponible(game))infoBox(ex,'El Lobo Rojo ya no puede actuar (ha muerto algún lobo): haz como si lo despertaras.','warn2');
+    else pickerUI(ex,{label:'Segunda víctima del Lobo Rojo',key:'rojo',filter:notWolf});
+  }else if(a==='judas'){
+    const j=Engine.actor(game,'loboJudas');
+    pickerUI(ex,{label:'Lobo que elimina el Judas (opcional)',key:'judas',filter:p=>Engine.isWolf(p)&&p.idx!==j.idx});
+  }else if(a==='bruja'){
+    const vic=Engine.previewVictims(game,game.acts);
+    infoBox(ex,vic.length?`Enséñale a: <b>${vic.map(v=>nm(v.idx)).join(', ')}</b>`:'Esta noche no hay ningún devorado.');
+    if(!game.brujaVidaUsada&&vic.length){
+      const lab=document.createElement('div');lab.className='pk-label';lab.textContent='Poción de vida (cura a…)';ex.appendChild(lab);
+      const g=document.createElement('div');g.className='players-mini';
+      vic.forEach(v=>{const d=document.createElement('div');d.className='pm'+(game.acts.brujaCura===v.idx?' sel2':'');d.innerHTML=`<div class="pmn"><span class="pe">${v.idx+1}</span>${nm(v.idx)}</div>`;
+        d.onclick=()=>{game.acts.brujaCura=game.acts.brujaCura===v.idx?null:v.idx;renderStep();};g.appendChild(d);});
+      ex.appendChild(g);
+    }else infoBox(ex,game.brujaVidaUsada?'Poción de vida ya usada.':'Sin víctimas que curar.','warn2');
+    if(!game.brujaMuerteUsada)pickerUI(ex,{label:'Poción de muerte (envenena a…)',key:'brujaVeneno'});
+    else infoBox(ex,'Poción de muerte ya usada.','warn2');
+  }else if(a==='vidente'){
+    pickerUI(ex,{label:'Jugador que mira la Vidente',key:'vidente'});
+    const v=game.acts.vidente;
+    if(v!==null&&v!==undefined){const r=Engine.videnteVe(game,v);infoBox(ex,r==='lobo'?'👍 Pulgar arriba: es LOBO':'👎 Pulgar abajo: es ALDEANO',r==='lobo'?'bad':'ok');}
+  }else if(a==='zorra'){
+    if(game.zorraPerdida){infoBox(ex,'La Zorra ya perdió su poder: es una Aldeana.','warn2');return;}
+    pickerUI(ex,{label:'Centro del trío (puede ser la propia Zorra)',key:'zorra'});
+    const v=game.acts.zorra;
+    if(v!==null&&v!==undefined){const h=Engine.zorraVe(game,v);infoBox(ex,h?'👍 Pulgar arriba: hay al menos un lobo':'👎 Pulgar abajo: ningún lobo. La Zorra pierde el poder',h?'bad':'ok');}
+  }else if(a==='policia'){
+    if(!game.policiaArrestoUsado)pickerUI(ex,{label:'Arrestar a… (pulgar abajo; no vota ni habla mañana)',key:'policiaArresta'});else infoBox(ex,'Arresto ya usado.','warn2');
+    if(!game.policiaInmuneUsado)pickerUI(ex,{label:'Dar inmunidad a… (pulgar arriba; no puede ser votado mañana)',key:'policiaInmune'});else infoBox(ex,'Inmunidad ya usada.','warn2');
+  }else if(a==='inquisidor'){
+    const inq=Engine.actor(game,'inquisidor');
+    if(inq.lobo){infoBox(ex,'El Inquisidor/Lobo no puede usar su poder.','warn2');return;}
+    if(game.inquisidorUsado){infoBox(ex,'El Inquisidor ya usó su poder.','warn2');return;}
+    const req=Engine.inquisidorObjetivos(game);
+    infoBox(ex,`Debe señalar a <b>${req.n}</b> y acertar ${req.n===req.aciertos?'en todos':'al menos en '+req.aciertos}. Si falla, muere.`);
+    pickerUI(ex,{label:`Sospechosos (${(game.acts.inquisidor||[]).length}/${req.n})`,key:'inquisidor',multi:req.n,filter:p=>p.idx!==inq.idx});
+  }else if(a==='medium'){
+    const l=game.lastLynched;
+    infoBox(ex,l!==null&&l!==undefined?`El alma de <b>${nm(l)}</b> (linchado ayer) dibuja una letra.`:'Ayer no fue linchado nadie: el Médium no recibe nada.');
+  }else if(a==='despierta'){
+    if(!game.nightResolved){
+      infoBox(ex,'Cuando hayas introducido todas las acciones de la noche, resuélvela.');
+      const b=document.createElement('button');b.className='btn btn-primary btn-sm';b.style.marginTop='0';b.textContent='🌅 Resolver la noche y despertar a la aldea';
+      b.onclick=()=>{
+        const rep=Engine.resolveNight(game,game.acts);
+        game.nightRep=rep;game.nightResolved=true;if(rep.info.careto)game.caretoUsedNight=game.night;
+        renderStep();renderPlayersMini();afterAct();
+      };
+      ex.appendChild(b);
+    }else{
+      const r=game.nightRep;
+      infoBox(ex,'<b>La aldea despierta con la noticia de que…</b><br>'+r.manana.map(esc).join('<br>'),'ok');
+      if(r.info.maldito!==undefined)infoBox(ex,`🔒 Solo para ti: <b>${nm(r.info.maldito)}</b> es Lobo desde esta noche (no lo anuncies).`);
+      if(r.info.inquisidor==='falla')infoBox(ex,'⚖️ El Inquisidor ha fallado y ha muerto.','bad');
+      if(r.info.zorraPierde)infoBox(ex,'🦊 La Zorra no encontró lobos: pierde su poder.');
+      if(game.infected!==null&&game.infected!==undefined)infoBox(ex,`🐀 La Rata ha muerto: <b>${nm(game.infected)}</b> queda infectado y morirá la próxima noche.`,'bad');
+      r.avisos.forEach(m=>infoBox(ex,'ℹ️ '+esc(m),'warn2'));
+    }
+  }else if(a==='debate'){
+    const pr=game.assigned.filter(p=>p.preso&&p.vivo).map(p=>esc(p.name)),im=game.assigned.filter(p=>p.inmune&&p.vivo).map(p=>esc(p.name));
+    if(pr.length)infoBox(ex,'🚔 Arrestado (no vota ni habla): <b>'+pr.join(', ')+'</b>');
+    if(im.length)infoBox(ex,'🛡️ Inmune (no puede ser votado): <b>'+im.join(', ')+'</b>');
+    if(Engine.ventajaLobos(game))infoBox(ex,'⚠️ Hay tantos lobos como aldeanos: un empate favorece a los lobos.','warn2');
+  }else if(a==='votacion'){
+    const b=document.createElement('button');b.className='btn btn-primary btn-sm';b.style.marginTop='0';b.textContent='🗳️ Abrir la votación';b.onclick=showVoteModal;ex.appendChild(b);
+    if(game.lastLynched!==null&&game.lastLynched!==undefined&&game.day===0)infoBox(ex,'Linchado hoy: <b>'+nm(game.lastLynched)+'</b>');
+  }
+}
+
+/* ===== VOTACIÓN ===== */
+function showVoteModal(){
+  if(!game.vote)game.vote={counts:{},alguacil:null,solo:null};
+  renderVote();document.getElementById('voteModal').classList.add('open');
+}
+function closeVoteModal(){document.getElementById('voteModal').classList.remove('open');}
+function voteChange(idx,d){const v=game.vote;v.counts[idx]=Math.max(0,(v.counts[idx]||0)+d);renderVote();}
+function renderVote(){
+  const v=game.vote,body=document.getElementById('voteBody');body.innerHTML='';
+  const alive=Engine.alivePlayers(game),candidatos=alive.filter(p=>!v.solo||v.solo.includes(p.idx));
+  const presos=alive.filter(p=>p.preso).map(p=>esc(p.name)),inm=alive.filter(p=>p.inmune).map(p=>esc(p.name));
+  const alg=alive.find(p=>p.insignia);
+  let notas='';
+  if(presos.length)notas+=`🚔 No vota: <b>${presos.join(', ')}</b><br>`;
+  if(inm.length)notas+=`🛡️ No se puede votar a: <b>${inm.join(', ')}</b><br>`;
+  const nino=alive.find(p=>p.roles.includes('ninoSalvaje')&&!p.lobo),mod=game.assigned.find(p=>p.modelo&&p.vivo);
+  if(nino&&mod)notas+=`🧒 ${esc(nino.name)} no puede votar a ${esc(mod.name)}<br>`;
+  if(v.solo)notas+='🔁 Segunda ronda: solo entre los empatados<br>';
+  if(notas)infoBox(body,notas);
+  candidatos.forEach(p=>{
+    const blocked=!Engine.puedeSerVotado(game,p.idx);
+    const row=document.createElement('div');row.className='vote-row'+(blocked?' blocked':'');
+    row.innerHTML=`<div class="vn">${p.idx+1}. ${esc(p.name)}${p.insignia?' 👮':''}${blocked?' 🛡️':''}</div>`;
+    if(!blocked){
+      const m=document.createElement('button');m.className='rnd';m.textContent='−';m.onclick=()=>voteChange(p.idx,-1);
+      const c=document.createElement('div');c.className='vc';c.textContent=v.counts[p.idx]||0;
+      const pl=document.createElement('button');pl.className='rnd';pl.textContent='+';pl.onclick=()=>voteChange(p.idx,1);
+      row.append(m,c,pl);
+    }
+    body.appendChild(row);
+  });
+  if(alg&&!alg.preso){
+    const lab=document.createElement('div');lab.className='pk-label';lab.textContent=`Voto doble de ${alg.name} (👮 cuenta una vez más): a…`;body.appendChild(lab);
+    const sel=document.createElement('select');
+    sel.innerHTML='<option value="">— no vota / ya contado —</option>'+candidatos.filter(p=>Engine.puedeSerVotado(game,p.idx)).map(p=>`<option value="${p.idx}"${v.alguacil===p.idx?' selected':''}>${esc(p.name)}</option>`).join('');
+    sel.onchange=()=>{v.alguacil=sel.value===''?null:+sel.value;renderVote();};
+    body.appendChild(sel);
+  }
+  const t=Engine.tally(game,v.counts,v.alguacil);
+  const lines=Object.keys(t.totals).sort((a,b)=>t.totals[b]-t.totals[a]).map(k=>`${nm(+k)}: <b>${t.totals[k]}</b>`);
+  const res=document.createElement('div');res.className='vote-res';res.innerHTML=lines.length?lines.join(' · '):'Aún no hay votos.';body.appendChild(res);
+  const mk=(txt,cls,fn)=>{const b=document.createElement('button');b.className='btn '+cls;b.textContent=txt;b.onclick=fn;body.appendChild(b);};
+  if(t.ganador!==null)mk(`☠️ Linchar a ${game.assigned[t.ganador].name}`,'btn-primary',()=>doLynch(t.ganador));
+  else if(t.empate){
+    if(t.desempata!==null){
+      infoBox(body,`Empate. <b>${esc(game.assigned[t.desempata].name)}</b> (Insignia) decide a quién eliminar:`,'warn2');
+      t.top.forEach(i=>mk(`☠️ Linchar a ${game.assigned[i].name}`,'btn-primary btn-sm',()=>doLynch(i)));
+    }else{
+      infoBox(body,'Empate y no hay Insignia: se vota de nuevo entre los empatados. Si persiste, nadie es eliminado.','warn2');
+      mk('🔁 Votar de nuevo entre los empatados','btn-dark btn-sm',()=>{game.vote={counts:{},alguacil:null,solo:t.top};renderVote();});
+    }
+  }
+  mk('Nadie es eliminado','btn-ghost btn-sm',()=>{closeVoteModal();game.vote=null;toast('Hoy no se elimina a nadie');});
+}
+function doLynch(idx){
+  closeVoteModal();
+  const target=game.assigned[idx],ev=[];
+  const h=Engine.herederaElegible(game,idx);
+  if(h&&confirm(`¿${h.name} (Heredera) quiere quedarse con la carta de ${target.name}?`))ev.push(...Engine.heredar(game,idx));
+  ev.push(...Engine.lynch(game,idx));
+  game.vote=null;
+  afterAct();renderPlayersMini();
+  if(cfg.mode===2&&document.getElementById('scr-guided').classList.contains('active'))renderStep();
+  toast(`☠️ ${target.name} es linchado`+(ev.length?' · '+ev[ev.length-1]:''));
 }
 
 /* ===== ACTION SHEET ===== */
